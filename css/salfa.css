@@ -333,6 +333,39 @@ html[dir="rtl"] .toggle input:checked + .toggle__track::after { transform: trans
 .stat__label { font-size: 0.7rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--coffee-soft); margin-top: 0.5rem; }
 html[lang="ar"] .stat__label { letter-spacing: 0; text-transform: none; font-size: 0.82rem; }
 
+/* Insights — same card language as the stat tiles, one step quieter. */
+.insights { margin-bottom: clamp(1.75rem, 4vw, 2.5rem); }
+.insights__title { font-size: 1.4rem; margin-bottom: 1rem; }
+.insights__grid { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+@media (min-width: 620px) { .insights__grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; } }
+@media (min-width: 980px) { .insights__grid { grid-template-columns: repeat(4, 1fr); } }
+
+.insight {
+  background: var(--paper); border: 1px solid var(--line-soft); border-radius: var(--r-md);
+  padding: clamp(0.9rem, 3vw, 1.25rem); box-shadow: var(--shadow-sm);
+}
+.insight__label { font-size: 0.7rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--coffee-soft); }
+html[lang="ar"] .insight__label { letter-spacing: 0; text-transform: none; font-size: 0.82rem; }
+.insight__value {
+  font-family: var(--display); font-size: clamp(1.3rem, 3.4vw, 1.7rem); line-height: 1.2;
+  margin-top: 0.45rem; overflow-wrap: anywhere;
+}
+.insight__sub { font-size: 0.8rem; color: var(--sand); margin-top: 0.25rem; }
+
+/* Search + filter chips above the collection */
+.finder { display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.finder .input { flex: 1 1 240px; }
+.chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.chip {
+  font-family: var(--ui); font-size: 0.82rem; font-weight: 500;
+  color: var(--coffee-mid); background: transparent;
+  border: 1px solid var(--line); border-radius: var(--r-pill);
+  padding: 0.45rem 0.9rem; min-height: 38px; cursor: pointer;
+  transition: all 0.18s var(--ease);
+}
+.chip:hover { border-color: var(--sand); background: var(--paper); }
+.chip[aria-pressed="true"] { background: var(--coffee); border-color: var(--coffee); color: var(--cream); }
+
 .collection__bar { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
 .collection__title { font-size: 1.4rem; }
 .collection__count { font-size: 0.85rem; color: var(--coffee-soft); }
@@ -459,6 +492,17 @@ html[lang="ar"] .dl dt { letter-spacing: 0; text-transform: none; font-size: 0.8
 .dl dd { margin: 0; font-size: 1rem; }
 .notes { background: var(--cream); border-inline-start: 3px solid var(--sand); border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 1rem 1.15rem; white-space: pre-wrap; line-height: 1.7; }
 html[dir="rtl"] .notes { border-radius: var(--r-sm) 0 0 var(--r-sm); }
+/* Edit / delete, and the delete confirmation */
+.sheet__actions {
+  display: flex; gap: 0.6rem; flex-wrap: wrap;
+  margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--line-soft);
+}
+.sheet__actions .btn { flex: 1 1 auto; }
+.confirm__body { color: var(--coffee-mid); line-height: 1.65; margin-bottom: 1.25rem; }
+.btn--danger { --btn-fg: var(--danger); }
+.btn--danger:hover:not(:disabled) { --btn-fg: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.btn--danger-solid { --btn-bg: var(--danger); --btn-fg: #fff; }
+
 .sheet__badge { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sand); background: var(--sand-wash); padding: 0.35rem 0.75rem; border-radius: var(--r-pill); }
 html[lang="ar"] .sheet__badge { letter-spacing: 0; text-transform: none; }
 

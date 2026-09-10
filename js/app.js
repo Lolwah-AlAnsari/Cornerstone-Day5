@@ -7,7 +7,7 @@
 import { configured, supabase } from "./supabase.js";
 import { initLang, t, num, formatDate, getLang, toggleLang, onLangChange } from "./i18n.js";
 import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyAuthError, resendConfirmation } from "./auth.js";
-import { listLogs, createLog, computeStats, withCoordinates } from "./logs.js";
+import { listLogs, createLog, updateLog, deleteLog, computeStats, computeInsights, withCoordinates } from "./logs.js";
 import { dallahArt, finjanArt, icedCoffeeArt } from "./art.js";
 import { loadLeaflet, createBaseMap, salfaMarker, fitToPoints, searchPlaces, DEFAULT_CENTER } from "./map.js";
 
@@ -25,6 +25,8 @@ const state = {
   loadingLogs: false,
   lastFocused: null,
   notice: null,      // { kind, message, offerResend } shown on the auth screens
+  query: "",         // dashboard search text
+  filter: "all",     // "all" | "favourites" | "top"
 };
 
 /** Teardown for the hero's WebGL scene, so leaving the landing page frees it. */
@@ -425,6 +427,8 @@ function renderDashboard() {
         <div class="stat"><p class="stat__n">${stats.best ? esc(num(stats.best)) + `<small style="font-size:.5em;opacity:.5">/${esc(num(5))}</small>` : "—"}</p><p class="stat__label">${esc(t("statBest"))}</p></div>
       </section>
 
+      ${renderInsights(logs ?? [])}
+
       <section>
         <div class="collection__bar">
           <h2 class="collection__title">${esc(t("collectionTitle"))}</h2>
@@ -434,6 +438,30 @@ function renderDashboard() {
               : ""
           }
         </div>
+
+        ${
+          logs?.length
+            ? `<div class="finder">
+                 <input class="input" id="logSearch" type="search" autocomplete="off"
+                        value="${esc(state.query)}"
+                        placeholder="${esc(t("searchLogsPh"))}" aria-label="${esc(t("searchLogs"))}" />
+                 <div class="chips" role="group" aria-label="${esc(t("filterBy"))}">
+                   ${[
+                     ["all", t("filterAll")],
+                     ["favourites", t("filterFavourites")],
+                     ["top", t("filterTop")],
+                   ]
+                     .map(
+                       ([key, label]) => `
+                     <button class="chip" type="button" data-filter="${key}"
+                             aria-pressed="${state.filter === key}">${esc(label)}</button>`
+                     )
+                     .join("")}
+                 </div>
+               </div>`
+            : ""
+        }
+
         <div id="collection">${renderCollection()}</div>
       </section>
     </div>
@@ -443,6 +471,71 @@ function renderDashboard() {
     </div>`;
 
   wireCollection();
+}
+
+/**
+ * Insights over the user's own logs. Total and favourites already have tiles
+ * in the stats row above, so this section carries the four that don't.
+ */
+function renderInsights(logs) {
+  const insights = computeInsights(logs);
+  if (!insights) return "";
+
+  const cell = (label, value, sub = "") => `
+    <div class="insight">
+      <p class="insight__label">${esc(label)}</p>
+      <p class="insight__value">${esc(value)}</p>
+      ${sub ? `<p class="insight__sub">${esc(sub)}</p>` : ""}
+    </div>`;
+
+  const none = t("insightNone");
+
+  return `
+    <section class="insights" aria-label="${esc(t("insightsTitle"))}">
+      <h2 class="insights__title">${esc(t("insightsTitle"))}</h2>
+      <div class="insights__grid">
+        ${cell(t("insightAverage"), `${num(insights.average)} / ${num(5)}`)}
+        ${cell(
+          t("insightBest"),
+          insights.bestCup ? insights.bestCup.name : none,
+          insights.bestCup ? `${"★".repeat(insights.bestCup.rating)}` : ""
+        )}
+        ${cell(
+          t("insightPlace"),
+          insights.topPlace ? insights.topPlace.value : none,
+          insights.topPlace ? t("insightTimes", { n: num(insights.topPlace.count) }) : ""
+        )}
+        ${cell(
+          t("insightCompany"),
+          insights.topCompany ? insights.topCompany.value : none,
+          insights.topCompany ? t("insightTimes", { n: num(insights.topCompany.count) }) : ""
+        )}
+      </div>
+    </section>`;
+}
+
+/** The user's own logs, narrowed by the search box and the active filter. */
+function visibleLogs() {
+  const all = state.logs ?? [];
+  const q = state.query.trim().toLowerCase();
+
+  let rows = all.filter((log) => {
+    if (state.filter === "favourites" && !log.is_favorite) return false;
+    if (!q) return true;
+    return [log.name, log.place, log.with_who, log.notes]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+  });
+
+  // "Highest rated" reorders rather than hides, so nothing disappears silently.
+  if (state.filter === "top") {
+    rows = [...rows].sort(
+      (a, b) => b.rating - a.rating || new Date(b.created_at) - new Date(a.created_at)
+    );
+  }
+  return rows;
 }
 
 function renderCollection() {
@@ -468,7 +561,20 @@ function renderCollection() {
       </div>`;
   }
 
-  return `<div class="grid">${state.logs.map(logCard).join("")}</div>`;
+  const rows = visibleLogs();
+
+  // Nothing matched the search or filter — distinct from having no logs at all.
+  if (rows.length === 0) {
+    return `
+      <div class="empty">
+        <div class="empty__art">${finjanArt({ size: 84, steam: false })}</div>
+        <h3>${esc(t("noMatchTitle"))}</h3>
+        <p>${esc(t("noMatchBody"))}</p>
+        <button class="btn btn--ghost" type="button" id="clearFilters">${esc(t("clearFilters"))}</button>
+      </div>`;
+  }
+
+  return `<div class="grid">${rows.map(logCard).join("")}</div>`;
 }
 
 function logCard(log) {
@@ -500,6 +606,42 @@ function wireCollection() {
       if (log) openSheet(log, card);
     });
   });
+
+  // Only the collection is re-rendered as you search or filter, so the input
+  // keeps focus and the caret position while you type.
+  const redrawCollection = () => {
+    const host = document.getElementById("collection");
+    if (!host) return;
+    host.innerHTML = renderCollection();
+    wireCollection();
+  };
+
+  const search = document.getElementById("logSearch");
+  if (search && !search.dataset.wired) {
+    search.dataset.wired = "true";
+    search.addEventListener("input", () => {
+      state.query = search.value;
+      redrawCollection();
+    });
+  }
+
+  viewEl.querySelectorAll("[data-filter]").forEach((chip) => {
+    if (chip.dataset.wired) return;
+    chip.dataset.wired = "true";
+    chip.addEventListener("click", () => {
+      state.filter = chip.dataset.filter;
+      viewEl.querySelectorAll("[data-filter]").forEach((c) => {
+        c.setAttribute("aria-pressed", String(c.dataset.filter === state.filter));
+      });
+      redrawCollection();
+    });
+  });
+
+  document.getElementById("clearFilters")?.addEventListener("click", () => {
+    state.query = "";
+    state.filter = "all";
+    renderDashboard();
+  });
 }
 
 async function loadLogs() {
@@ -515,6 +657,7 @@ async function loadLogs() {
     state.loadingLogs = false;
     if (location.hash === "#/dashboard") renderDashboard();
     else if (location.hash === "#/map") renderMapView();
+    else if (location.hash.startsWith("#/edit/")) route();
   }
 }
 
@@ -651,11 +794,55 @@ function openSheet(log, trigger) {
         ? `<div><dt class="dl" style="display:block;margin-bottom:.5rem;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;opacity:.6">${esc(t("labelNotes"))}</dt>
              <p class="notes">${esc(log.notes)}</p></div>`
         : ""
-    }`;
+    }
+
+    <div class="sheet__actions">
+      <a class="btn btn--ghost" href="#/edit/${encodeURIComponent(log.id)}">${esc(t("editStory"))}</a>
+      <button class="btn btn--quiet btn--danger" type="button" id="deleteBtn">${esc(t("deleteStory"))}</button>
+    </div>`;
 
   sheetEl.hidden = false;
   document.body.style.overflow = "hidden";
   sheetPanelEl.querySelector("[data-close-sheet]")?.focus();
+
+  document.getElementById("deleteBtn")?.addEventListener("click", () => confirmDelete(log));
+}
+
+/** Swaps the sheet for a confirmation, so deleting always takes two decisions. */
+function confirmDelete(log) {
+  sheetPanelEl.innerHTML = `
+    <div class="sheet__kicker">
+      <span></span>
+      <button class="sheet__close" type="button" data-close-sheet aria-label="${esc(t("close"))}">✕</button>
+    </div>
+    <h2 class="sheet__title" id="sheetTitle">${esc(t("deleteConfirmTitle"))}</h2>
+    <p class="confirm__body">${esc(t("deleteConfirmBody", { name: log.name }))}</p>
+    <div id="deleteAlert"></div>
+    <div class="sheet__actions">
+      <button class="btn btn--ghost" type="button" id="cancelDelete">${esc(t("cancel"))}</button>
+      <button class="btn btn--danger-solid" type="button" id="confirmDelete">${esc(t("deleteConfirmCta"))}</button>
+    </div>`;
+
+  document.getElementById("cancelDelete").addEventListener("click", () => openSheet(log, null));
+  document.getElementById("confirmDelete").focus();
+
+  document.getElementById("confirmDelete").addEventListener("click", async () => {
+    const button = document.getElementById("confirmDelete");
+    busy(button, true, t("deleting"));
+    try {
+      await deleteLog(log.id);
+      state.logs = (state.logs ?? []).filter((l) => l.id !== log.id);
+      closeSheet();
+      toast(t("deletedToast"));
+      if (location.hash === "#/map") renderMapView();
+      else renderDashboard();
+    } catch (error) {
+      busy(button, false);
+      document.getElementById("deleteAlert").innerHTML =
+        `<div class="alert alert--error">${esc(t("errGeneric"))}</div>`;
+      console.error("[salfa] delete failed:", error);
+    }
+  });
 }
 
 function closeSheet() {
@@ -675,31 +862,36 @@ document.addEventListener("keydown", (event) => {
 
 /* ------------------------------ add gahwa ------------------------------ */
 
-function renderAddView() {
+/**
+ * The same form serves adding and editing. In edit mode the location picker is
+ * left out entirely: coordinates are not among the editable fields, and leaving
+ * the picker out means an edit cannot disturb a pin that is already set.
+ */
+function renderAddView(editing = null) {
   viewEl.innerHTML = `
     <div class="shell authwrap">
       <div class="authcard" style="max-width:560px">
-        <p class="eyebrow">${esc(t("addGahwa"))}</p>
-        <h1 class="authcard__title">${esc(t("addTitle"))}</h1>
-        <p class="authcard__sub">${esc(t("addSub"))}</p>
+        <p class="eyebrow">${esc(editing ? t("editGahwa") : t("addGahwa"))}</p>
+        <h1 class="authcard__title">${esc(editing ? t("editTitle") : t("addTitle"))}</h1>
+        <p class="authcard__sub">${esc(editing ? t("editSub") : t("addSub"))}</p>
 
         <form class="form" id="addForm" novalidate>
           <div id="addAlert"></div>
 
           <div class="field" id="gName">
             <label class="field__label" for="gname">${esc(t("fName"))}</label>
-            <input class="input" id="gname" type="text" maxlength="120" placeholder="${esc(t("fNamePh"))}" />
+            <input class="input" id="gname" type="text" maxlength="120" value="${esc(editing?.name ?? "")}" placeholder="${esc(t("fNamePh"))}" />
             <p class="field__error"></p>
           </div>
 
           <div class="field" id="gPlace">
             <label class="field__label" for="gplace">${esc(t("fPlace"))}</label>
-            <input class="input" id="gplace" type="text" maxlength="120" placeholder="${esc(t("fPlacePh"))}" />
+            <input class="input" id="gplace" type="text" maxlength="120" value="${esc(editing?.place ?? "")}" placeholder="${esc(t("fPlacePh"))}" />
           </div>
 
           <div class="field" id="gWith">
             <label class="field__label" for="gwith">${esc(t("fWith"))}</label>
-            <input class="input" id="gwith" type="text" maxlength="120" placeholder="${esc(t("fWithPh"))}" />
+            <input class="input" id="gwith" type="text" maxlength="120" value="${esc(editing?.with_who ?? "")}" placeholder="${esc(t("fWithPh"))}" />
           </div>
 
           <div class="field" id="gRating">
@@ -707,7 +899,7 @@ function renderAddView() {
             <div class="rating" id="rating">
               ${[1, 2, 3, 4, 5]
                 .map(
-                  (n) => `<input type="radio" name="rating" id="r${n}" value="${n}" />
+                  (n) => `<input type="radio" name="rating" id="r${n}" value="${n}" ${editing?.rating === n ? "checked" : ""} />
                           <label for="r${n}" data-value="${n}" title="${n}/5"><span aria-hidden="true">★</span><span class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">${n}</span></label>`
                 )
                 .join("")}
@@ -721,15 +913,16 @@ function renderAddView() {
               <span class="toggle__title">${esc(t("fFav"))}</span>
               <span class="toggle__sub">${esc(t("fFavSub"))}</span>
             </span>
-            <input type="checkbox" id="gfav" />
+            <input type="checkbox" id="gfav" ${editing?.is_favorite ? "checked" : ""} />
             <span class="toggle__track" aria-hidden="true"></span>
           </label>
 
           <div class="field" id="gNotes">
             <label class="field__label" for="gnotes">${esc(t("fNotes"))}</label>
-            <textarea class="textarea" id="gnotes" maxlength="2000" placeholder="${esc(t("fNotesPh"))}"></textarea>
+            <textarea class="textarea" id="gnotes" maxlength="2000" placeholder="${esc(t("fNotesPh"))}">${esc(editing?.notes ?? "")}</textarea>
           </div>
 
+          ${editing ? "" : `
           <div class="field" id="gPin">
             <span class="field__label">${esc(t("fPin"))}</span>
             <p class="field__hint">${esc(t("fPinHint"))}</p>
@@ -747,15 +940,15 @@ function renderAddView() {
                 <button class="btn btn--quiet" type="button" id="clearPinBtn" hidden>${esc(t("clearPin"))}</button>
               </div>
             </div>
-          </div>
+          </div>`}
 
-          <button class="btn btn--block" type="submit" id="addSubmit">${esc(t("save"))}</button>
+          <button class="btn btn--block" type="submit" id="addSubmit">${esc(editing ? t("saveChanges") : t("save"))}</button>
           <a class="btn btn--quiet btn--block" href="#/dashboard">${esc(t("cancel"))}</a>
         </form>
       </div>
     </div>`;
 
-  wireAddForm();
+  wireAddForm(editing);
 }
 
 /**
@@ -863,8 +1056,9 @@ async function wireLocationPicker() {
   });
 }
 
-function wireAddForm() {
-  wireLocationPicker();
+function wireAddForm(editing = null) {
+  // No picker in edit mode — the form does not render one.
+  if (!editing) wireLocationPicker();
 
   const ratingEl = document.getElementById("rating");
   const labels = [...ratingEl.querySelectorAll("label")];
@@ -909,25 +1103,35 @@ function wireAddForm() {
     }
 
     busy(submit, true, t("saving"));
-    try {
-      const saved = await createLog({
-        name,
-        place: document.getElementById("gplace").value,
-        with_who: document.getElementById("gwith").value,
-        rating,
-        is_favorite: document.getElementById("gfav").checked,
-        notes: document.getElementById("gnotes").value,
-        latitude: pickedPoint?.latitude,
-        longitude: pickedPoint?.longitude,
-      });
+    const fields = {
+      name,
+      place: document.getElementById("gplace").value,
+      with_who: document.getElementById("gwith").value,
+      rating,
+      is_favorite: document.getElementById("gfav").checked,
+      notes: document.getElementById("gnotes").value,
+    };
 
-      state.logs = state.logs ? [saved, ...state.logs] : [saved];
-      toast(t("savedToast"));
+    try {
+      if (editing) {
+        const saved = await updateLog(editing.id, fields);
+        // Swap the row in place so the collection keeps its order.
+        state.logs = (state.logs ?? []).map((l) => (l.id === saved.id ? saved : l));
+        toast(t("updatedToast"));
+      } else {
+        const saved = await createLog({
+          ...fields,
+          latitude: pickedPoint?.latitude,
+          longitude: pickedPoint?.longitude,
+        });
+        state.logs = state.logs ? [saved, ...state.logs] : [saved];
+        toast(t("savedToast"));
+      }
       go("#/dashboard");
     } catch (error) {
       busy(submit, false);
       alertSlot.innerHTML = `<div class="alert alert--error">${esc(t("errGeneric"))}</div>`;
-      console.error("[salfa] insert failed:", error);
+      console.error(editing ? "[salfa] update failed:" : "[salfa] insert failed:", error);
     }
   });
 }
@@ -956,6 +1160,7 @@ function route() {
 
   const hash = location.hash || "#/";
   const signedIn = Boolean(state.session);
+  const editId = hash.startsWith("#/edit/") ? decodeURIComponent(hash.slice("#/edit/".length)) : null;
 
   // The notice belongs to the auth screens; don't carry it anywhere else.
   if (hash !== "#/login" && hash !== "#/signup") state.notice = null;
@@ -966,10 +1171,25 @@ function route() {
   if (hash !== "#/add") { pickerMap?.remove(); pickerMap = null; }
 
   // Guests never reach the app; members never see the marketing pages.
-  if (!signedIn && (hash === "#/dashboard" || hash === "#/add" || hash === "#/map")) return go("#/login");
+  if (!signedIn && (hash === "#/dashboard" || hash === "#/add" || hash === "#/map" || editId)) return go("#/login");
   if (signedIn && (hash === "#/" || hash === "#/login" || hash === "#/signup")) return go("#/dashboard");
 
   renderChrome();
+
+  // Editing reuses the add form, prefilled. The row comes from the logs already
+  // loaded for this user; if they are not loaded yet, fetch then re-route.
+  if (editId) {
+    if (state.logs === null) {
+      viewEl.innerHTML = `<div class="shell section"><p class="dash__sub">${esc(t("loading"))}</p></div>`;
+      loadLogs();
+      return;
+    }
+    const log = state.logs.find((l) => l.id === editId);
+    if (!log) return go("#/dashboard");
+    renderAddView(log);
+    window.scrollTo({ top: 0, behavior: "instant" });
+    return;
+  }
 
   switch (hash) {
     case "#/login":
