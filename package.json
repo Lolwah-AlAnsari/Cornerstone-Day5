@@ -1,0 +1,10 @@
+{
+  "name": "salfa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SĀLFA — a personal gahwa log. Every cup has a story.",
+  "scripts": {
+    "build": "node scripts/generate-config.mjs",
+    "dev": "python3 -m http.server 4173"
+  }
+}

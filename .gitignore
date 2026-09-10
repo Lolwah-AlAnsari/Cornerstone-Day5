@@ -1,0 +1,15 @@
+# Local Supabase config — generated at build time on Vercel
+js/config.js
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Tooling / OS
+node_modules/
+.vercel
+.DS_Store
+
+# Local editor/agent config
+.claude/
