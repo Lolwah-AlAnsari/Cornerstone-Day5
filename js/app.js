@@ -26,6 +26,9 @@ const state = {
   notice: null,      // { kind, message, offerResend } shown on the auth screens
 };
 
+/** Teardown for the hero's WebGL scene, so leaving the landing page frees it. */
+let heroDallahDispose = null;
+
 /**
  * Snapshot of any auth callback in the URL, read synchronously at module load.
  *
@@ -155,7 +158,8 @@ function renderLanding() {
           <a class="btn btn--ghost" href="#/login">${esc(t("heroCtaSecondary"))}</a>
         </div>
       </div>
-      <div class="hero__art" aria-hidden="true">
+      <div class="hero__art" id="heroArt" aria-hidden="true">
+        <div class="hero__stage" id="heroStage"></div>
         <div class="cupcard"><span class="cupcard__label">${esc(t("cup2"))}</span><span class="cupcard__meta">${esc(t("cupMeta2"))}</span></div>
         <div class="cupcard"><span class="cupcard__label">${esc(t("cup3"))}</span><span class="cupcard__meta">${esc(t("cupMeta3"))}</span></div>
         <div class="cupcard">
@@ -187,6 +191,44 @@ function renderLanding() {
           .join("")}
       </div>
     </section>`;
+
+  mountHeroDallah();
+}
+
+/**
+ * Brings up the rotating dallah behind the hero, if this visitor should get it.
+ * The CSS cards stay in the markup and simply fade out once WebGL is running,
+ * so a decline (mobile, reduced motion, no WebGL, CDN down) is invisible.
+ */
+async function mountHeroDallah() {
+  disposeHeroDallah();
+
+  const stage = document.getElementById("heroStage");
+  const art = document.getElementById("heroArt");
+  if (!stage || !art) return;
+
+  try {
+    const { mountDallah3D } = await import("./dallah3d.js");
+    const dispose = await mountDallah3D(stage);
+    if (!dispose) return;
+
+    // The route may have changed while three.js was downloading.
+    if (!document.body.contains(stage)) {
+      dispose();
+      return;
+    }
+    heroDallahDispose = dispose;
+    art.dataset.mode = "3d";
+  } catch (error) {
+    console.warn("[salfa] hero dallah skipped:", error);
+  }
+}
+
+function disposeHeroDallah() {
+  if (heroDallahDispose) {
+    heroDallahDispose();
+    heroDallahDispose = null;
+  }
 }
 
 /* ------------------------------ auth views ------------------------------ */
@@ -669,6 +711,9 @@ function route() {
 
   // The notice belongs to the auth screens; don't carry it anywhere else.
   if (hash !== "#/login" && hash !== "#/signup") state.notice = null;
+
+  // The hero only exists on the landing page; never leave its WebGL context running.
+  if (hash !== "#/") disposeHeroDallah();
 
   // Guests never reach the app; members never see the marketing pages.
   if (!signedIn && (hash === "#/dashboard" || hash === "#/add")) return go("#/login");
