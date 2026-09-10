@@ -8,7 +8,8 @@
 
 import { supabase } from "./supabase.js";
 
-const COLUMNS = "id, name, place, with_who, rating, is_favorite, notes, created_at, user_id";
+const COLUMNS =
+  "id, name, place, with_who, rating, is_favorite, notes, created_at, user_id, latitude, longitude";
 
 /** Every log belonging to the signed-in user, newest first. */
 export async function listLogs() {
@@ -22,7 +23,7 @@ export async function listLogs() {
 }
 
 /** Insert one log. user_id is stamped by the database default (auth.uid()). */
-export async function createLog({ name, place, with_who, rating, is_favorite, notes }) {
+export async function createLog({ name, place, with_who, rating, is_favorite, notes, latitude, longitude }) {
   const payload = {
     name: name.trim(),
     place: place?.trim() || null,
@@ -30,6 +31,9 @@ export async function createLog({ name, place, with_who, rating, is_favorite, no
     rating: Number(rating),
     is_favorite: Boolean(is_favorite),
     notes: notes?.trim() || null,
+    // The database enforces both-or-neither, so normalise a half-set pair to null.
+    latitude: Number.isFinite(latitude) && Number.isFinite(longitude) ? latitude : null,
+    longitude: Number.isFinite(latitude) && Number.isFinite(longitude) ? longitude : null,
   };
 
   const { data, error } = await supabase
@@ -40,6 +44,11 @@ export async function createLog({ name, place, with_who, rating, is_favorite, no
 
   if (error) throw error;
   return data;
+}
+
+/** Logs that can actually appear on the map. */
+export function withCoordinates(logs) {
+  return logs.filter((l) => Number.isFinite(l.latitude) && Number.isFinite(l.longitude));
 }
 
 /** The three numbers shown on the dashboard. */

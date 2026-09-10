@@ -7,8 +7,9 @@
 import { configured, supabase } from "./supabase.js";
 import { initLang, t, num, formatDate, getLang, toggleLang, onLangChange } from "./i18n.js";
 import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyAuthError, resendConfirmation } from "./auth.js";
-import { listLogs, createLog, computeStats } from "./logs.js";
+import { listLogs, createLog, computeStats, withCoordinates } from "./logs.js";
 import { dallahArt, finjanArt, icedCoffeeArt } from "./art.js";
+import { loadLeaflet, createBaseMap, salfaMarker, fitToPoints, DEFAULT_CENTER } from "./map.js";
 
 const viewEl = document.getElementById("view");
 const topbarAuthEl = document.getElementById("topbarAuth");
@@ -28,6 +29,13 @@ const state = {
 
 /** Teardown for the hero's WebGL scene, so leaving the landing page frees it. */
 let heroDallahDispose = null;
+
+/** Live Leaflet instances, torn down when their view goes away. */
+let collectionMap = null;
+let pickerMap = null;
+
+/** Coordinates chosen on the Add form, or null when no place was pinned. */
+let pickedPoint = null;
 
 /**
  * Snapshot of any auth callback in the URL, read synchronously at module load.
@@ -405,7 +413,10 @@ function renderDashboard() {
           <h1 class="dash__greet">${esc(greeting())}${getLang() === "ar" ? "، " : ", "}<span>${esc(name)}</span></h1>
           <p class="dash__sub">${esc(t("dashSub"))}</p>
         </div>
-        <a class="btn btn--desktop-add" href="#/add">${esc(t("addGahwa"))}</a>
+        <div class="dash__actions">
+          <a class="btn btn--ghost" href="#/map">${esc(t("viewMap"))}</a>
+          <a class="btn btn--desktop-add" href="#/add">${esc(t("addGahwa"))}</a>
+        </div>
       </header>
 
       <section class="stats" aria-label="${esc(t("collectionTitle"))}">
@@ -503,7 +514,77 @@ async function loadLogs() {
   } finally {
     state.loadingLogs = false;
     if (location.hash === "#/dashboard") renderDashboard();
+    else if (location.hash === "#/map") renderMapView();
   }
+}
+
+/* ------------------------------ map view ------------------------------ */
+
+function renderMapView() {
+  const mapped = withCoordinates(state.logs ?? []);
+
+  viewEl.innerHTML = `
+    <div class="shell">
+      <header class="dash__head">
+        <div>
+          <p class="eyebrow">SĀLFA</p>
+          <h1 class="dash__greet">${esc(t("mapTitle"))}</h1>
+          <p class="dash__sub">${esc(
+            mapped.length === 0
+              ? t("mapEmptySub")
+              : mapped.length === 1
+                ? t("mapSubOne")
+                : t("mapSub", { n: num(mapped.length) })
+          )}</p>
+        </div>
+        <a class="btn btn--ghost" href="#/dashboard">${esc(t("backToDash"))}</a>
+      </header>
+
+      ${
+        mapped.length
+          ? `<div class="mapwrap"><div id="collectionMap" class="mapcanvas"></div></div>`
+          : `<div class="empty">
+               <div class="empty__art">${dallahArt({ size: 96 })}</div>
+               <h3>${esc(t("mapEmptyTitle"))}</h3>
+               <p>${esc(t("mapEmptyBody"))}</p>
+               <a class="btn" href="#/add">${esc(t("addGahwa"))}</a>
+             </div>`
+      }
+    </div>
+
+    <div class="mobilebar">
+      <a class="btn btn--block" href="#/add">${esc(t("addGahwa"))}</a>
+    </div>`;
+
+  if (mapped.length) mountCollectionMap(mapped);
+}
+
+async function mountCollectionMap(mapped) {
+  const el = document.getElementById("collectionMap");
+  if (!el) return;
+
+  let L;
+  try {
+    L = await loadLeaflet();
+  } catch (error) {
+    el.innerHTML = `<p class="mapfail">${esc(t("mapFailed"))}</p>`;
+    console.warn("[salfa] map unavailable:", error);
+    return;
+  }
+  if (!document.body.contains(el)) return; // navigated away mid-load
+
+  collectionMap?.remove();
+  collectionMap = createBaseMap(L, el);
+
+  const points = [];
+  for (const log of mapped) {
+    const point = [log.latitude, log.longitude];
+    points.push(point);
+    L.marker(point, { icon: salfaMarker(L, { favourite: log.is_favorite }), title: log.name })
+      .addTo(collectionMap)
+      .on("click", () => openSheet(log, null));
+  }
+  fitToPoints(collectionMap, points);
 }
 
 /* ------------------------------ detail sheet ------------------------------ */
@@ -610,6 +691,19 @@ function renderAddView() {
             <textarea class="textarea" id="gnotes" maxlength="2000" placeholder="${esc(t("fNotesPh"))}"></textarea>
           </div>
 
+          <div class="field" id="gPin">
+            <span class="field__label">${esc(t("fPin"))}</span>
+            <p class="field__hint">${esc(t("fPinHint"))}</p>
+            <div class="picker">
+              <div id="pickerMap" class="picker__map"></div>
+              <div class="picker__bar">
+                <button class="btn btn--quiet" type="button" id="locateBtn">${esc(t("useMyLocation"))}</button>
+                <span class="picker__value" id="pickerValue">${esc(t("noPinYet"))}</span>
+                <button class="btn btn--quiet" type="button" id="clearPinBtn" hidden>${esc(t("clearPin"))}</button>
+              </div>
+            </div>
+          </div>
+
           <button class="btn btn--block" type="submit" id="addSubmit">${esc(t("save"))}</button>
           <a class="btn btn--quiet btn--block" href="#/dashboard">${esc(t("cancel"))}</a>
         </form>
@@ -619,7 +713,75 @@ function renderAddView() {
   wireAddForm();
 }
 
+/**
+ * The optional location picker. Click the map to drop a pin, or let the browser
+ * offer the current position. Leaving it alone stores no coordinates at all —
+ * a cup without a place is still a valid cup.
+ */
+async function wireLocationPicker() {
+  pickedPoint = null;
+
+  const el = document.getElementById("pickerMap");
+  const valueEl = document.getElementById("pickerValue");
+  const clearBtn = document.getElementById("clearPinBtn");
+  const locateBtn = document.getElementById("locateBtn");
+  if (!el) return;
+
+  let L;
+  try {
+    L = await loadLeaflet();
+  } catch (error) {
+    document.getElementById("gPin")?.remove(); // no map, no picker — the rest of the form still works
+    console.warn("[salfa] location picker unavailable:", error);
+    return;
+  }
+  if (!document.body.contains(el)) return;
+
+  pickerMap?.remove();
+  pickerMap = createBaseMap(L, el, { zoom: 10 });
+
+  let marker = null;
+  const setPoint = (lat, lng, zoom) => {
+    pickedPoint = { latitude: lat, longitude: lng };
+    if (marker) marker.setLatLng([lat, lng]);
+    else marker = L.marker([lat, lng], { icon: salfaMarker(L) }).addTo(pickerMap);
+    if (zoom) pickerMap.setView([lat, lng], zoom);
+    valueEl.textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    clearBtn.hidden = false;
+  };
+
+  pickerMap.on("click", (e) => setPoint(e.latlng.lat, e.latlng.lng));
+
+  clearBtn.addEventListener("click", () => {
+    pickedPoint = null;
+    if (marker) { marker.remove(); marker = null; }
+    valueEl.textContent = t("noPinYet");
+    clearBtn.hidden = true;
+  });
+
+  locateBtn.addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      valueEl.textContent = t("locateUnsupported");
+      return;
+    }
+    busy(locateBtn, true, t("locating"));
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        busy(locateBtn, false);
+        setPoint(pos.coords.latitude, pos.coords.longitude, 15);
+      },
+      () => {
+        busy(locateBtn, false);
+        valueEl.textContent = t("locateDenied");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+}
+
 function wireAddForm() {
+  wireLocationPicker();
+
   const ratingEl = document.getElementById("rating");
   const labels = [...ratingEl.querySelectorAll("label")];
 
@@ -671,6 +833,8 @@ function wireAddForm() {
         rating,
         is_favorite: document.getElementById("gfav").checked,
         notes: document.getElementById("gnotes").value,
+        latitude: pickedPoint?.latitude,
+        longitude: pickedPoint?.longitude,
       });
 
       state.logs = state.logs ? [saved, ...state.logs] : [saved];
@@ -714,9 +878,11 @@ function route() {
 
   // The hero only exists on the landing page; never leave its WebGL context running.
   if (hash !== "#/") disposeHeroDallah();
+  if (hash !== "#/map") { collectionMap?.remove(); collectionMap = null; }
+  if (hash !== "#/add") { pickerMap?.remove(); pickerMap = null; }
 
   // Guests never reach the app; members never see the marketing pages.
-  if (!signedIn && (hash === "#/dashboard" || hash === "#/add")) return go("#/login");
+  if (!signedIn && (hash === "#/dashboard" || hash === "#/add" || hash === "#/map")) return go("#/login");
   if (signedIn && (hash === "#/" || hash === "#/login" || hash === "#/signup")) return go("#/dashboard");
 
   renderChrome();
@@ -734,6 +900,10 @@ function route() {
       break;
     case "#/add":
       renderAddView();
+      break;
+    case "#/map":
+      renderMapView();
+      if (state.logs === null) loadLogs();
       break;
     default:
       renderLanding();

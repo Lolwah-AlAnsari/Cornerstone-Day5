@@ -383,6 +383,40 @@ html[lang="ar"] .logcard__meta i { letter-spacing: 0; text-transform: none; font
 .skel__line--sm { width: 40%; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
+/* ============================ Maps ============================ */
+
+.dash__actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+.mapwrap {
+  border: 1px solid var(--line-soft); border-radius: var(--r-lg); overflow: hidden;
+  box-shadow: var(--shadow-sm); background: var(--paper);
+}
+.mapcanvas { height: clamp(340px, 58vh, 620px); width: 100%; }
+
+/* The OSM tiles are colourful; a light warm wash settles them into the palette. */
+.mapcanvas .leaflet-tile-pane { filter: saturate(0.72) sepia(0.14) brightness(1.03); }
+.mapcanvas .leaflet-container { background: var(--cream-deep); font-family: var(--ui); }
+
+.mapdot {
+  display: block; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--sand); border: 2.5px solid var(--paper);
+  box-shadow: 0 2px 8px rgba(46, 31, 26, 0.35);
+  cursor: pointer; transition: transform 0.18s var(--ease);
+}
+.mapdot:hover { transform: scale(1.25); }
+.mapdot--fav { background: var(--coffee); }
+
+.mapfail { padding: 2.5rem 1.5rem; text-align: center; color: var(--coffee-mid); }
+
+/* Location picker on the Add form */
+.picker { border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; background: var(--cream); }
+.picker__map { height: 220px; width: 100%; }
+.picker__bar {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  padding: 0.55rem 0.7rem; border-top: 1px solid var(--line-soft); background: var(--paper);
+}
+.picker__value { font-size: 0.85rem; color: var(--coffee-soft); margin-inline-start: auto; }
+
 /* ============================ Detail sheet ============================ */
 
 .sheet { position: fixed; inset: 0; z-index: 60; display: grid; }
