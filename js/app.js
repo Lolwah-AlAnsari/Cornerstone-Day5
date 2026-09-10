@@ -9,7 +9,7 @@ import { initLang, t, num, formatDate, getLang, toggleLang, onLangChange } from 
 import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyAuthError, resendConfirmation } from "./auth.js";
 import { listLogs, createLog, computeStats, withCoordinates } from "./logs.js";
 import { dallahArt, finjanArt, icedCoffeeArt } from "./art.js";
-import { loadLeaflet, createBaseMap, salfaMarker, fitToPoints, DEFAULT_CENTER } from "./map.js";
+import { loadLeaflet, createBaseMap, salfaMarker, fitToPoints, searchPlaces, DEFAULT_CENTER } from "./map.js";
 
 const viewEl = document.getElementById("view");
 const topbarAuthEl = document.getElementById("topbarAuth");
@@ -542,7 +542,12 @@ function renderMapView() {
 
       ${
         mapped.length
-          ? `<div class="mapwrap"><div id="collectionMap" class="mapcanvas"></div></div>`
+          ? `<div class="mapsearch">
+               <input class="input" id="mapFilter" type="search" autocomplete="off"
+                      placeholder="${esc(t("filterPh"))}" aria-label="${esc(t("filterLabel"))}" />
+               <span class="mapsearch__count" id="mapFilterCount"></span>
+             </div>
+             <div class="mapwrap"><div id="collectionMap" class="mapcanvas"></div></div>`
           : `<div class="empty">
                <div class="empty__art">${dallahArt({ size: 96 })}</div>
                <h3>${esc(t("mapEmptyTitle"))}</h3>
@@ -576,15 +581,49 @@ async function mountCollectionMap(mapped) {
   collectionMap?.remove();
   collectionMap = createBaseMap(L, el);
 
-  const points = [];
-  for (const log of mapped) {
-    const point = [log.latitude, log.longitude];
-    points.push(point);
-    L.marker(point, { icon: salfaMarker(L, { favourite: log.is_favorite }), title: log.name })
-      .addTo(collectionMap)
-      .on("click", () => openSheet(log, null));
-  }
-  fitToPoints(collectionMap, points);
+  // One marker per log, kept alongside its log so filtering can add and remove
+  // them without rebuilding the map.
+  const markers = mapped.map((log) => ({
+    log,
+    marker: L.marker([log.latitude, log.longitude], {
+      icon: salfaMarker(L, { favourite: log.is_favorite }),
+      title: log.name,
+    }).on("click", () => openSheet(log, null)),
+  }));
+
+  const countEl = document.getElementById("mapFilterCount");
+
+  /** Shows only the cups matching `query`, and reframes around them. */
+  const applyFilter = (query) => {
+    const q = query.trim().toLowerCase();
+    const shown = [];
+
+    for (const { log, marker } of markers) {
+      const haystack = [log.name, log.place, log.with_who, log.notes]
+        .filter(Boolean).join(" ").toLowerCase();
+      const match = !q || haystack.includes(q);
+
+      if (match) {
+        marker.addTo(collectionMap);
+        shown.push([log.latitude, log.longitude]);
+      } else {
+        marker.remove();
+      }
+    }
+
+    if (countEl) {
+      countEl.textContent = q
+        ? t("filterCount", { shown: num(shown.length), total: num(markers.length) })
+        : "";
+    }
+    if (shown.length) fitToPoints(collectionMap, shown);
+  };
+
+  applyFilter("");
+
+  const filterEl = document.getElementById("mapFilter");
+  // Filtering is local, so it can run freely as you type.
+  filterEl?.addEventListener("input", () => applyFilter(filterEl.value));
 }
 
 /* ------------------------------ detail sheet ------------------------------ */
@@ -695,6 +734,12 @@ function renderAddView() {
             <span class="field__label">${esc(t("fPin"))}</span>
             <p class="field__hint">${esc(t("fPinHint"))}</p>
             <div class="picker">
+              <div class="picker__search">
+                <input class="input" id="placeSearch" type="search" autocomplete="off"
+                       placeholder="${esc(t("searchPlacePh"))}" aria-label="${esc(t("searchPlace"))}" />
+                <button class="btn btn--quiet" type="button" id="placeSearchBtn">${esc(t("search"))}</button>
+              </div>
+              <p class="picker__result" id="placeSearchResult" hidden></p>
               <div id="pickerMap" class="picker__map"></div>
               <div class="picker__bar">
                 <button class="btn btn--quiet" type="button" id="locateBtn">${esc(t("useMyLocation"))}</button>
@@ -751,6 +796,45 @@ async function wireLocationPicker() {
   };
 
   pickerMap.on("click", (e) => setPoint(e.latlng.lat, e.latlng.lng));
+
+  // Place lookup. Only fires on submit — Nominatim's policy forbids
+  // autocomplete-style querying on every keystroke.
+  const searchInput = document.getElementById("placeSearch");
+  const searchBtn = document.getElementById("placeSearchBtn");
+  const resultEl = document.getElementById("placeSearchResult");
+
+  const runSearch = async () => {
+    const query = searchInput.value.trim();
+    if (!query) return;
+
+    busy(searchBtn, true, t("searching"));
+    resultEl.hidden = true;
+    try {
+      const [first] = await searchPlaces(query, { limit: 1 });
+      if (!first) {
+        resultEl.textContent = t("searchNoPlace");
+        resultEl.hidden = false;
+        return;
+      }
+      setPoint(first.latitude, first.longitude, 15);
+      resultEl.textContent = first.label;
+      resultEl.hidden = false;
+    } catch (error) {
+      resultEl.textContent = t("searchFailed");
+      resultEl.hidden = false;
+      console.warn("[salfa] place search failed:", error);
+    } finally {
+      busy(searchBtn, false);
+    }
+  };
+
+  searchBtn.addEventListener("click", runSearch);
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault(); // never submit the whole log form from this field
+      runSearch();
+    }
+  });
 
   clearBtn.addEventListener("click", () => {
     pickedPoint = null;

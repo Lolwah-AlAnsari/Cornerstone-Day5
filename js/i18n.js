@@ -143,6 +143,15 @@ const DICT = {
     mapEmptyTitle: "Nothing on the map yet",
     mapEmptyBody: "Pin a location when you log a gahwa and it will appear here — the diwaniyas, the cafés, the kitchen table.",
     mapFailed: "The map couldn't load. Your logs are safe — try again later.",
+    searchPlace: "Search for a place",
+    searchPlacePh: "Search a place — Salmiya, Avenues…",
+    search: "Search",
+    searching: "Searching…",
+    searchNoPlace: "No place found by that name.",
+    searchFailed: "Place search is unavailable right now — tap the map instead.",
+    filterLabel: "Search your cups",
+    filterPh: "Search your cups — a name, a place, who you were with…",
+    filterCount: "Showing {shown} of {total}",
 
     /* misc */
     configMissing: "Supabase is not configured",
@@ -286,6 +295,15 @@ const DICT = {
     mapEmptyTitle: "لا شيء على الخريطة بعد",
     mapEmptyBody: "حدد المكان عند تسجيل قهوتك وسيظهر هنا — الدواوين، المقاهي، وطاولة المطبخ.",
     mapFailed: "تعذّر تحميل الخريطة. سجلاتك بأمان — حاول لاحقاً.",
+    searchPlace: "ابحث عن مكان",
+    searchPlacePh: "ابحث عن مكان — السالمية، الأفنيوز…",
+    search: "بحث",
+    searching: "جارٍ البحث…",
+    searchNoPlace: "لم يُعثر على مكان بهذا الاسم.",
+    searchFailed: "البحث عن الأماكن غير متاح حالياً — اضغط على الخريطة بدلاً من ذلك.",
+    filterLabel: "ابحث في فناجيلك",
+    filterPh: "ابحث في فناجيلك — اسم، مكان، أو مع من…",
+    filterCount: "عرض {shown} من {total}",
 
     /* misc */
     configMissing: "لم يتم إعداد Supabase",

@@ -67,6 +67,30 @@ export function salfaMarker(L, { favourite = false } = {}) {
   });
 }
 
+/**
+ * Looks a place up through Nominatim, OpenStreetMap's free geocoder.
+ *
+ * No key and no billing, but its usage policy forbids autocomplete-style
+ * querying, so this is only ever called on an explicit submit — never on
+ * keystroke. Results are capped and biased towards Kuwait without excluding
+ * anywhere else.
+ */
+export async function searchPlaces(query, { limit = 5 } = {}) {
+  const url =
+    "https://nominatim.openstreetmap.org/search" +
+    `?format=json&limit=${limit}&accept-language=en&q=${encodeURIComponent(query)}`;
+
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`Nominatim responded ${res.status}`);
+
+  const rows = await res.json();
+  return rows.map((r) => ({
+    label: r.display_name,
+    latitude: Number(r.lat),
+    longitude: Number(r.lon),
+  }));
+}
+
 /** Frames the map around the given points, with a sane fallback for one or none. */
 export function fitToPoints(map, points) {
   if (!points.length) {
