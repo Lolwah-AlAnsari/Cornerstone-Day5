@@ -216,8 +216,8 @@ async function mountHeroDallah() {
   if (!stage || !art) return;
 
   try {
-    const { mountDallah3D } = await import("./dallah3d.js");
-    const dispose = await mountDallah3D(stage);
+    const { mountHeroScene } = await import("./scene3d.js");
+    const dispose = await mountHeroScene(stage);
     if (!dispose) return;
 
     // The route may have changed while three.js was downloading.
