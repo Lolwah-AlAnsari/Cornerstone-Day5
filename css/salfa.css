@@ -210,12 +210,15 @@ html[lang="ar"] .eyebrow { letter-spacing: 0.05em; }
 .cupcard:nth-child(1) { transform: rotate(-7deg) translate(4%, 8%); opacity: 0.55; }
 .cupcard:nth-child(2) { transform: rotate(4deg) translate(18%, 2%); opacity: 0.8; }
 .cupcard:nth-child(3) { transform: rotate(-1deg) translate(30%, 16%); }
+.cupcard__glyph { color: var(--sand); display: flex; justify-content: center; margin-bottom: 0.35rem; }
+.cupcard:nth-child(1) .cupcard__glyph,
+.cupcard:nth-child(2) .cupcard__glyph { opacity: 0.75; }
 .cupcard__label { font-family: var(--display); font-size: 1.7rem; }
 .cupcard__meta { font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--coffee-soft); }
 
 .pillars { display: grid; gap: 1.5rem; border-top: 1px solid var(--line-soft); padding-top: clamp(2rem, 5vw, 3rem); }
 @media (min-width: 720px) { .pillars { grid-template-columns: repeat(3, 1fr); gap: 2.5rem; } }
-.pillar__n { font-family: var(--display); font-size: 1.6rem; color: var(--sand); }
+.pillar__glyph { color: var(--sand); margin-bottom: 0.4rem; line-height: 0; }
 .pillar h3 { font-size: 1.2rem; margin-block: 0.35rem 0.4rem; }
 .pillar p { color: var(--coffee-mid); font-size: 0.95rem; }
 
@@ -361,8 +364,8 @@ html[lang="ar"] .logcard__meta i { letter-spacing: 0; text-transform: none; font
   text-align: center; padding: clamp(2.5rem, 8vw, 5rem) 1.5rem;
   background: var(--paper); border: 1px dashed var(--line); border-radius: var(--r-lg);
 }
-.empty__cup { width: 68px; height: 68px; margin: 0 auto 1.5rem; border-radius: 50%; background: var(--sand-wash); display: grid; place-items: center; }
-.empty__cup span { width: 22px; height: 22px; border-radius: 50%; background: var(--sand); opacity: 0.85; }
+.empty__art { color: var(--sand); margin: 0 auto 1.25rem; display: flex; justify-content: center; }
+.empty__art svg { opacity: 0.9; }
 .empty h3 { font-size: clamp(1.5rem, 4vw, 2rem); margin-bottom: 0.6rem; }
 .empty p { color: var(--coffee-mid); max-width: 42ch; margin: 0 auto 1.75rem; }
 

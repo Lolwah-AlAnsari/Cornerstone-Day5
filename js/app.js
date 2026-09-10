@@ -8,6 +8,7 @@ import { configured, supabase } from "./supabase.js";
 import { initLang, t, num, formatDate, getLang, toggleLang, onLangChange } from "./i18n.js";
 import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyAuthError, resendConfirmation } from "./auth.js";
 import { listLogs, createLog, computeStats } from "./logs.js";
+import { dallahArt, finjanArt, icedCoffeeArt } from "./art.js";
 
 const viewEl = document.getElementById("view");
 const topbarAuthEl = document.getElementById("topbarAuth");
@@ -158,6 +159,7 @@ function renderLanding() {
         <div class="cupcard"><span class="cupcard__label">${esc(t("cup2"))}</span><span class="cupcard__meta">${esc(t("cupMeta2"))}</span></div>
         <div class="cupcard"><span class="cupcard__label">${esc(t("cup3"))}</span><span class="cupcard__meta">${esc(t("cupMeta3"))}</span></div>
         <div class="cupcard">
+          <span class="cupcard__glyph">${dallahArt({ size: 54, stroke: 3.4 })}</span>
           <span class="cupcard__label">${esc(t("cup1"))}</span>
           <span class="cupcard__meta">${esc(t("cupMeta1"))}</span>
           ${starsMarkup(5)}
@@ -167,11 +169,17 @@ function renderLanding() {
 
     <section class="shell section">
       <div class="pillars">
-        ${[1, 2, 3]
+        ${[
+          // The dallah's viewBox is twice as wide, so it needs double the stroke
+          // weight and a little extra size to sit optically level with the others.
+          { n: 1, glyph: dallahArt({ size: 62, stroke: 4.2 }) },
+          { n: 2, glyph: finjanArt({ size: 50 }) },
+          { n: 3, glyph: icedCoffeeArt({ size: 50 }) },
+        ]
           .map(
-            (n) => `
+            ({ n, glyph }) => `
           <div class="pillar">
-            <p class="pillar__n">${esc(num(`0${n}`))}</p>
+            <div class="pillar__glyph">${glyph}</div>
             <h3>${esc(t(`pillar${n}Title`))}</h3>
             <p>${esc(t(`pillar${n}Body`))}</p>
           </div>`
@@ -400,7 +408,7 @@ function renderCollection() {
   if (state.logs.length === 0) {
     return `
       <div class="empty">
-        <div class="empty__cup" aria-hidden="true"><span></span></div>
+        <div class="empty__art">${dallahArt({ size: 108 })}</div>
         <h3>${esc(t("emptyTitle"))}</h3>
         <p>${esc(t("emptyBody"))}</p>
         <a class="btn" href="#/add">${esc(t("emptyCta"))}</a>
