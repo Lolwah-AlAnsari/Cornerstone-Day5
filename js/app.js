@@ -6,7 +6,7 @@
 
 import { configured, supabase } from "./supabase.js";
 import { initLang, t, num, formatDate, getLang, toggleLang, onLangChange } from "./i18n.js";
-import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyAuthError } from "./auth.js";
+import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyAuthError, resendConfirmation } from "./auth.js";
 import { listLogs, createLog, computeStats } from "./logs.js";
 
 const viewEl = document.getElementById("view");
@@ -22,7 +22,41 @@ const state = {
   logs: null,        // null = not loaded yet, [] = loaded and empty
   loadingLogs: false,
   lastFocused: null,
+  notice: null,      // { kind, message, offerResend } shown on the auth screens
 };
+
+/**
+ * Snapshot of any auth callback in the URL, read synchronously at module load.
+ *
+ * This has to happen before supabase-js finishes its own URL detection, because
+ * that strips the parameters from the address bar. Confirmation links land as
+ * `#access_token=…&type=signup` on success, or `#error=…&error_code=otp_expired`
+ * when the link is stale — without this snapshot the second case is invisible
+ * and the user just lands on the marketing page with no explanation.
+ */
+const AUTH_CALLBACK = (() => {
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const query = new URLSearchParams(location.search);
+  const get = (key) => hash.get(key) ?? query.get(key);
+
+  const hasTokens = Boolean(hash.get("access_token"));
+  const error = get("error");
+  const errorCode = get("error_code");
+  const type = get("type");
+
+  return {
+    isCallback: hasTokens || Boolean(error) || type === "signup" || type === "recovery",
+    hasTokens,
+    error,
+    errorCode,
+    type,
+  };
+})();
+
+/** Drop callback params so a reload doesn't replay them and the URL stays clean. */
+function stripCallbackFromUrl() {
+  history.replaceState({}, "", location.pathname);
+}
 
 /* ------------------------------ helpers ------------------------------ */
 
@@ -149,6 +183,15 @@ function renderLanding() {
 
 /* ------------------------------ auth views ------------------------------ */
 
+/** Renders state.notice, plus a resend button when a fresh link would help. */
+function noticeMarkup() {
+  if (!state.notice) return "";
+  const { kind, message, offerResend } = state.notice;
+  return `
+    <div class="alert alert--${kind === "error" ? "error" : "ok"}">${esc(message)}</div>
+    ${offerResend ? `<button class="btn btn--quiet btn--block" type="button" id="resendBtn">${esc(t("resendCta"))}</button>` : ""}`;
+}
+
 function renderAuthView(mode) {
   const isSignup = mode === "signup";
 
@@ -160,7 +203,7 @@ function renderAuthView(mode) {
         <p class="authcard__sub">${esc(isSignup ? t("signupSub") : t("loginSub"))}</p>
 
         <form class="form" id="authForm" novalidate>
-          <div id="authAlert"></div>
+          <div id="authAlert">${noticeMarkup()}</div>
 
           ${
             isSignup
@@ -207,6 +250,34 @@ function wireAuthForm(isSignup) {
   const form = document.getElementById("authForm");
   const alertSlot = document.getElementById("authAlert");
   const submit = document.getElementById("authSubmit");
+
+  wireResendButton();
+
+  /** The resend control appears wherever a stale/unconfirmed link left the user. */
+  function wireResendButton() {
+    const btn = document.getElementById("resendBtn");
+    if (!btn) return;
+
+    btn.addEventListener("click", async () => {
+      const email = document.getElementById("email").value.trim();
+      if (!email || !isEmail(email)) {
+        setFieldError(document.getElementById("fEmail"), t("resendNeedEmail"));
+        document.getElementById("email").focus();
+        return;
+      }
+      setFieldError(document.getElementById("fEmail"), "");
+
+      busy(btn, true, t("resending"));
+      try {
+        await resendConfirmation(email);
+        state.notice = null;
+        alertSlot.innerHTML = `<div class="alert alert--ok">${esc(t("resendSent"))}</div>`;
+      } catch (error) {
+        busy(btn, false);
+        alertSlot.innerHTML = `<div class="alert alert--error">${esc(friendlyAuthError(error))}</div>`;
+      }
+    });
+  }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -256,7 +327,15 @@ function wireAuthForm(isSignup) {
       go("#/dashboard");
     } catch (error) {
       busy(submit, false);
-      alertSlot.innerHTML = `<div class="alert alert--error">${esc(friendlyAuthError(error))}</div>`;
+      // An unconfirmed account is a dead end without a way to get a fresh link.
+      const unconfirmed = error?.code === "email_not_confirmed";
+      state.notice = {
+        kind: "error",
+        message: friendlyAuthError(error),
+        offerResend: unconfirmed,
+      };
+      alertSlot.innerHTML = noticeMarkup();
+      wireResendButton();
     }
   });
 }
@@ -580,6 +659,9 @@ function route() {
   const hash = location.hash || "#/";
   const signedIn = Boolean(state.session);
 
+  // The notice belongs to the auth screens; don't carry it anywhere else.
+  if (hash !== "#/login" && hash !== "#/signup") state.notice = null;
+
   // Guests never reach the app; members never see the marketing pages.
   if (!signedIn && (hash === "#/dashboard" || hash === "#/add")) return go("#/login");
   if (signedIn && (hash === "#/" || hash === "#/login" || hash === "#/signup")) return go("#/dashboard");
@@ -626,8 +708,29 @@ window.addEventListener("hashchange", route);
   }
 
   // Restore an existing session before the first paint so a reload on
-  // #/dashboard doesn't bounce the user to the login screen.
+  // #/dashboard doesn't bounce the user to the login screen. When the user has
+  // just arrived from a confirmation link, this is also what consumes it:
+  // getSession() waits for supabase-js to finish reading the URL.
   state.session = await getSession();
+
+  let confirmedToast = null;
+
+  if (AUTH_CALLBACK.isCallback) {
+    stripCallbackFromUrl();
+
+    if (AUTH_CALLBACK.error) {
+      state.notice = {
+        kind: "error",
+        message: AUTH_CALLBACK.errorCode === "otp_expired" ? t("linkExpired") : t("linkInvalid"),
+        offerResend: true,
+      };
+    } else if (state.session) {
+      confirmedToast = t("confirmedToast");
+    } else {
+      // Tokens were present but no session came out of them.
+      state.notice = { kind: "error", message: t("linkInvalid"), offerResend: true };
+    }
+  }
 
   onAuthChange((session) => {
     const changed = session?.user?.id !== state.session?.user?.id;
@@ -636,5 +739,11 @@ window.addEventListener("hashchange", route);
     route();
   });
 
-  route();
+  // A failed confirmation belongs on the login screen, where the notice and the
+  // resend button live. A successful one falls through to the signed-in guard,
+  // which sends the user to their dashboard.
+  if (state.notice) go("#/login");
+  else route();
+
+  if (confirmedToast) toast(confirmedToast);
 })();

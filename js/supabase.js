@@ -22,6 +22,16 @@ export const supabase = configured
         persistSession: true,
         autoRefreshToken: true,
         storageKey: "salfa.auth",
+
+        // The confirmation link returns here with the session in the URL hash;
+        // this reads it, stores it, and strips it from the address bar.
+        detectSessionInUrl: true,
+
+        // Pinned deliberately. Implicit puts the session straight in the hash,
+        // so confirming on a phone works even though sign-up happened on a
+        // laptop. PKCE would need the verifier from the originating browser and
+        // would break cross-device confirmation.
+        flowType: "implicit",
       },
     })
   : null;

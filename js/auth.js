@@ -23,11 +23,24 @@ export function friendlyAuthError(error) {
   return t("errGeneric");
 }
 
+/**
+ * Where Supabase sends the user after they click the confirmation link.
+ *
+ * Derived from the page the sign-up happened on, so localhost confirms back to
+ * localhost and production confirms back to production — no hardcoded host, and
+ * no dependence on the project's Site URL default (which is localhost:3000).
+ * Every origin used here must also be listed under Auth → URL Configuration →
+ * Redirect URLs, or Supabase silently falls back to the Site URL.
+ */
+export function confirmationRedirectUrl() {
+  return window.location.origin + window.location.pathname;
+}
+
 export async function signUp({ name, email, password }) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { name } },
+    options: { data: { name }, emailRedirectTo: confirmationRedirectUrl() },
   });
   if (error) throw error;
 
@@ -40,6 +53,16 @@ export async function logIn({ email, password }) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data.session;
+}
+
+/** Send the confirmation email again — for expired links and unconfirmed logins. */
+export async function resendConfirmation(email) {
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: { emailRedirectTo: confirmationRedirectUrl() },
+  });
+  if (error) throw error;
 }
 
 export async function logOut() {

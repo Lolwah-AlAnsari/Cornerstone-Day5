@@ -53,6 +53,13 @@ const DICT = {
     haveAccount: "Already have an account?",
     noAccount: "New to SĀLFA?",
     checkEmail: "Almost there — check your inbox to confirm your email, then log in.",
+    confirmedToast: "Email confirmed — welcome to SĀLFA.",
+    linkExpired: "That confirmation link has expired or was already used. Send yourself a new one.",
+    linkInvalid: "We couldn't confirm your email with that link. Send yourself a new one.",
+    resendCta: "Resend confirmation email",
+    resending: "Sending…",
+    resendSent: "Sent. Check your inbox for a fresh link.",
+    resendNeedEmail: "Enter your email above first.",
 
     /* validation + auth errors */
     errNameReq: "Please tell us your name.",
@@ -173,6 +180,13 @@ const DICT = {
     haveAccount: "لديك حساب بالفعل؟",
     noAccount: "جديد على سالفة؟",
     checkEmail: "خطوة أخيرة — تحقق من بريدك لتأكيد الحساب، ثم سجّل الدخول.",
+    confirmedToast: "تم تأكيد بريدك — أهلاً بك في سالفة.",
+    linkExpired: "انتهت صلاحية رابط التأكيد أو تم استخدامه من قبل. أرسل رابطاً جديداً.",
+    linkInvalid: "تعذّر تأكيد بريدك بهذا الرابط. أرسل رابطاً جديداً.",
+    resendCta: "إعادة إرسال رسالة التأكيد",
+    resending: "جارٍ الإرسال…",
+    resendSent: "تم الإرسال. تحقق من بريدك للحصول على رابط جديد.",
+    resendNeedEmail: "أدخل بريدك الإلكتروني أولاً.",
 
     /* validation + auth errors */
     errNameReq: "من فضلك أدخل اسمك.",
