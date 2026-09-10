@@ -9,7 +9,7 @@
 /** A dallah — the Arabic coffee pot. Used on the empty state. */
 export function dallahArt({ size = 132, className = "", stroke = 2.2 } = {}) {
   return `
-<svg class="${className}" width="${size}" height="${size}" viewBox="0 0 120 130" fill="none"
+<svg xmlns="http://www.w3.org/2000/svg" class="${className}" width="${size}" height="${size}" viewBox="0 0 120 130" fill="none"
      stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round"
      aria-hidden="true" focusable="false">
   <!-- body: belly, waist, shoulder -->
@@ -32,7 +32,7 @@ export function dallahArt({ size = 132, className = "", stroke = 2.2 } = {}) {
 /** An iced coffee — because not every cup is hot. */
 export function icedCoffeeArt({ size = 52, className = "", stroke = 2.2 } = {}) {
   return `
-<svg class="${className}" width="${size}" height="${size}" viewBox="0 0 60 60" fill="none"
+<svg xmlns="http://www.w3.org/2000/svg" class="${className}" width="${size}" height="${size}" viewBox="0 0 60 60" fill="none"
      stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round"
      aria-hidden="true" focusable="false">
   <!-- straw -->
@@ -51,7 +51,7 @@ export function icedCoffeeArt({ size = 52, className = "", stroke = 2.2 } = {}) 
 /** A finjan — the small handleless cup. Used as a brand mark and beside the dallah. */
 export function finjanArt({ size = 52, className = "", steam = true, stroke = 2.2 } = {}) {
   return `
-<svg class="${className}" width="${size}" height="${size}" viewBox="0 0 60 60" fill="none"
+<svg xmlns="http://www.w3.org/2000/svg" class="${className}" width="${size}" height="${size}" viewBox="0 0 60 60" fill="none"
      stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round"
      aria-hidden="true" focusable="false">
   ${steam ? `<path d="M24 15 C20 10 28 8 24 3" stroke-width="1.8" opacity=".5"/>

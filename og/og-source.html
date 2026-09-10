@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>SĀLFA — social card source</title>
+<!--
+  Source for og/og-image.png (1200×630).
+
+  To regenerate: serve the project root, open /og/og-source.html at exactly
+  1200×630, and screenshot it. Rendering in a browser rather than an image
+  library is deliberate — the Arabic line needs proper text shaping.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;600&family=IBM+Plex+Sans+Arabic:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --cream: #FBF7F1; --cream-deep: #F3EBDF; --paper: #FFFDFA;
+    --coffee: #2E1F1A; --coffee-mid: #5A443A; --sand: #B08D57; --sand-wash: #F0E4D2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1200px; height: 630px; overflow: hidden;
+    background: var(--cream); color: var(--coffee);
+    font-family: "Inter", system-ui, sans-serif;
+    position: relative;
+  }
+  body::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(70ch 50ch at 88% -12%, var(--sand-wash) 0%, transparent 62%),
+      radial-gradient(60ch 44ch at -6% 108%, var(--cream-deep) 0%, transparent 58%);
+    opacity: .85;
+  }
+
+  .card { position: relative; height: 100%; display: grid; grid-template-columns: 1fr 420px;
+          align-items: center; padding: 74px 88px; }
+
+  .eyebrow { font-size: 18px; font-weight: 600; letter-spacing: .26em; text-transform: uppercase;
+             color: var(--sand); margin: 0 0 26px; }
+  h1 { font-family: "Cormorant Garamond", serif; font-weight: 500; font-size: 104px;
+       line-height: 1.02; letter-spacing: .01em; margin: 0 0 22px; }
+  h1 em { font-style: italic; color: var(--sand); }
+  /* rtl keeps the Arabic shaped and ordered correctly; text-align pulls the box
+     back to the left edge so it lines up with the English column above it. */
+  .ar { font-family: "IBM Plex Sans Arabic", serif; font-size: 34px; color: var(--coffee-mid);
+        margin: 0 0 40px; direction: rtl; text-align: left; }
+  .rule { width: 96px; height: 2px; background: var(--sand); opacity: .55; margin-bottom: 30px; }
+  .mark { display: flex; align-items: center; gap: 14px; }
+  .dot { width: 13px; height: 13px; border-radius: 50%; background: var(--sand);
+         box-shadow: 0 0 0 6px rgba(176,141,87,.18); }
+  .word { font-family: "Cormorant Garamond", serif; font-size: 40px; font-weight: 600; letter-spacing: .18em; }
+
+  .art { display: flex; align-items: center; justify-content: center; color: var(--sand); }
+  .art svg { filter: drop-shadow(0 18px 34px rgba(46,31,26,.14)); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div>
+      <p class="eyebrow">Personal gahwa log</p>
+      <h1>Every cup<br /><em>has a story</em></h1>
+      <p class="ar">كل فنجال وراه سالفة</p>
+      <div class="rule"></div>
+      <div class="mark"><span class="dot"></span><span class="word">SĀLFA</span></div>
+    </div>
+    <div class="art" id="art"></div>
+  </div>
+
+<script type="module">
+  import { dallahArt } from "../js/art.js?v=1789075166";
+
+  const DALLAH = dallahArt({ size: 400, stroke: 2.6 });
+  document.getElementById("art").innerHTML = DALLAH;
+  await document.fonts.ready;
+  document.documentElement.dataset.ready = "true";
+
+  /* ---------------------------------------------------------------------
+     ?export=1 redraws the same card onto a 2× canvas and POSTs the PNG.
+     Canvas is used rather than a screenshot because it renders with the
+     webfonts this page has already loaded, so the Arabic stays shaped.
+     --------------------------------------------------------------------- */
+  if (new URLSearchParams(location.search).get("export")) {
+    const S = 2, W = 1200, H = 630;
+    const c = Object.assign(document.createElement("canvas"), { width: W * S, height: H * S });
+    const x = c.getContext("2d");
+    x.scale(S, S);
+
+    const CREAM = "#FBF7F1", SAND = "#B08D57", COFFEE = "#2E1F1A", MID = "#5A443A";
+
+    x.fillStyle = CREAM;
+    x.fillRect(0, 0, W, H);
+    const warm = x.createRadialGradient(W * 0.88, -70, 0, W * 0.88, -70, 640);
+    warm.addColorStop(0, "#F0E4D2"); warm.addColorStop(1, "rgba(240,228,210,0)");
+    x.fillStyle = warm; x.fillRect(0, 0, W, H);
+    const cool = x.createRadialGradient(-40, H + 60, 0, -40, H + 60, 560);
+    cool.addColorStop(0, "#F3EBDF"); cool.addColorStop(1, "rgba(243,235,223,0)");
+    x.fillStyle = cool; x.fillRect(0, 0, W, H);
+
+    x.textBaseline = "alphabetic";
+
+    x.fillStyle = SAND;
+    x.font = '600 18px Inter, system-ui, sans-serif';
+    x.letterSpacing = "4.7px";
+    x.fillText("PERSONAL GAHWA LOG", 88, 108);
+    x.letterSpacing = "0px";
+
+    x.fillStyle = COFFEE;
+    x.font = '500 104px "Cormorant Garamond", serif';
+    x.fillText("Every cup", 88, 226);
+    x.fillStyle = SAND;
+    x.font = 'italic 500 104px "Cormorant Garamond", serif';
+    x.fillText("has a story", 88, 332);
+
+    x.fillStyle = MID;
+    x.font = '400 34px "IBM Plex Sans Arabic", serif';
+    x.direction = "rtl";
+    x.textAlign = "left";
+    x.fillText("كل فنجال وراه سالفة", 88, 404);
+    x.direction = "ltr";
+
+    x.fillStyle = SAND; x.globalAlpha = 0.55;
+    x.fillRect(88, 452, 96, 2);
+    x.globalAlpha = 1;
+
+    x.beginPath(); x.arc(94, 520, 6.5, 0, Math.PI * 2); x.fillStyle = SAND; x.fill();
+    x.fillStyle = COFFEE;
+    x.font = '600 40px "Cormorant Garamond", serif';
+    x.letterSpacing = "7.2px";
+    x.fillText("SĀLFA", 116, 534);
+    x.letterSpacing = "0px";
+
+    // The dallah carries no text, so it rasterises safely from a data URL.
+    // currentColor has nothing to inherit from once the SVG is standalone —
+    // it would render black — so bake the accent colour in.
+    const img = new Image();
+    img.src = "data:image/svg+xml;charset=utf-8," +
+      encodeURIComponent(DALLAH.replaceAll("currentColor", SAND));
+    await img.decode();
+    x.drawImage(img, 800, 118, 400, 400);
+
+    const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+    const res = await fetch("/save", { method: "POST", body: blob });
+    document.documentElement.dataset.exported = await res.text();
+  }
+</script>
+</body>
+</html>
