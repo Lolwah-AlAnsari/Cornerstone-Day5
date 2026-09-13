@@ -9,6 +9,12 @@
 const LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css";
 const LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
 
+// Fingerprints of those exact files. The browser refuses to run either one if
+// what arrives does not match, so a tampered or swapped file on the CDN fails
+// closed instead of executing inside the page.
+const LEAFLET_CSS_SRI = "sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w==";
+const LEAFLET_JS_SRI = "sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg==";
+
 /** Kuwait City — a sensible opening view for a Kuwaiti gahwa log. */
 export const DEFAULT_CENTER = [29.3759, 47.9774];
 export const DEFAULT_ZOOM = 11;
@@ -25,10 +31,14 @@ export function loadLeaflet() {
       const link = document.createElement("link");
       link.rel = "stylesheet";
       link.href = LEAFLET_CSS;
+      link.integrity = LEAFLET_CSS_SRI;
+      link.crossOrigin = "anonymous";
       document.head.append(link);
     }
     const script = document.createElement("script");
     script.src = LEAFLET_JS;
+    script.integrity = LEAFLET_JS_SRI;
+    script.crossOrigin = "anonymous";
     script.async = true;
     script.onload = () => (window.L ? resolve(window.L) : reject(new Error("Leaflet loaded but window.L is missing")));
     script.onerror = () => reject(new Error("Leaflet failed to load"));

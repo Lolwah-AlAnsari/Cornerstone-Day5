@@ -3,7 +3,9 @@
    step, no node_modules.
    ========================================================================== */
 
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+// Pinned to an exact version. "@2" would mean "whatever the newest 2.x is today",
+// which lets the code that handles passwords change underneath us with no deploy.
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/+esm";
 
 const cfg = window.SALFA_CONFIG || {};
 
