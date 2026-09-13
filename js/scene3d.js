@@ -26,6 +26,19 @@ const HANDLE = [[12, 46], [42, 52], [50, 78], [28, 94]];
 const POT_BASE = 116;
 const POT_UNIT = 0.024;
 
+/* --- the Arabic dala out front: slimmer, taller, with a far longer spout ---
+   Deliberately distinct from the pot behind it — a pronounced waist, a tall
+   neck, and a crescent that rises past the lid, which is the silhouette a
+   Kuwaiti dallah is recognised by. */
+const DALA_PROFILE = [
+  [0, 116], [18, 116], [19.5, 114], [22.5, 107], [24, 97], [23, 86],
+  [20, 74], [17, 64], [15, 56], [14, 50], [14, 46],
+  [17.5, 45], [17.5, 41], [12, 40], [12, 34],
+  [10, 33], [7, 26], [4, 20], [1.5, 15],
+];
+const DALA_SPOUT = [[-13, 50], [-29, 39], [-43, 25], [-51, 9]];
+const DALA_HANDLE = [[12, 44], [41, 49], [49, 74], [26, 93]];
+
 /* --- iced coffee, from the 60×60 glyph --- */
 const GLASS_PROFILE = [
   [0, 53], [8.6, 53], [10.6, 42], [12, 19],   // up the outside
@@ -118,7 +131,7 @@ export async function mountHeroScene(container) {
   dallah.add(sweep(SPOUT, 2.4 * POT_UNIT));
   dallah.add(sweep(HANDLE, 2.2 * POT_UNIT));
 
-  dallah.position.set(-1.05, 0, 0);
+  dallah.position.set(-1.5, 0.05, -0.35);
   world.add(dallah);
 
   /* --------------------------- the iced coffee --------------------------- */
@@ -162,8 +175,28 @@ export async function mountHeroScene(container) {
   straw.rotation.z = -0.32;
   iced.add(straw);
 
-  iced.position.set(1.15, 0.06, 0);
+  iced.position.set(1.68, 0.1, -0.3);
   world.add(iced);
+
+  /* ------------------------ the Arabic dala, in front ------------------------ */
+  const dala = new THREE.Group();
+
+  dala.add(new THREE.Mesh(
+    new THREE.LatheGeometry(DALA_PROFILE.map(([r, y]) => new THREE.Vector2(r * POT_UNIT, potY(y))), 96),
+    brass
+  ));
+
+  const dalaFinial = new THREE.Mesh(new THREE.SphereGeometry(3.2 * POT_UNIT, 24, 16), brass);
+  dalaFinial.position.y = potY(11);
+  dala.add(dalaFinial);
+
+  dala.add(sweep(DALA_SPOUT, 2.5 * POT_UNIT));
+  dala.add(sweep(DALA_HANDLE, 2.3 * POT_UNIT));
+
+  // Forward on Z, so perspective gives it presence without needing extra scale.
+  dala.position.set(-0.08, -0.14, 1.55);
+  dala.scale.setScalar(0.92);
+  world.add(dala);
 
   /* --------------------------- motion + dragging --------------------------- */
   // Centre the pair in frame.
@@ -171,7 +204,7 @@ export async function mountHeroScene(container) {
 
   // Drag spins each object on its own axis. Rotating the parent group instead
   // would make the two orbit each other and swap sides, which wrecks the layout.
-  let autoPot = -0.5, autoGlass = 0;   // the idle turn of each object
+  let autoPot = -0.5, autoGlass = 0, autoDala = 2.0;   // the idle turn of each object
   let userSpin = 0;                    // what the visitor has added by dragging
   let spinVelocity = 0;                // momentum, eased back to rest
   let dragging = false;
@@ -224,6 +257,7 @@ export async function mountHeroScene(container) {
     // Each object turns at its own pace, so the pair is never static.
     autoPot += dt * 0.30;
     autoGlass += dt * 0.42;
+    autoDala += dt * 0.24;   // slowest, so the nearest object is the calmest
 
     // Momentum from a drag decays back to the idle turn.
     if (!dragging) {
@@ -234,8 +268,10 @@ export async function mountHeroScene(container) {
 
     dallah.rotation.y = autoPot + userSpin;
     iced.rotation.y = autoGlass + userSpin;
+    dala.rotation.y = autoDala + userSpin;
     dallah.rotation.x += (tilt - dallah.rotation.x) * 0.08;
     iced.rotation.x += (tilt - iced.rotation.x) * 0.08;
+    dala.rotation.x += (tilt - dala.rotation.x) * 0.08;
 
     renderer.render(scene, camera);
     raf = requestAnimationFrame(frame);
