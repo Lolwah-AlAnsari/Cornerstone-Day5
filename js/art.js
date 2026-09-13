@@ -6,6 +6,24 @@
    Edit the paths here to redraw; nothing else imports geometry.
    ========================================================================== */
 
+/**
+ * A coffee bean. Filled by default, because at the small sizes used for
+ * background texture a stroked outline disappears.
+ */
+export function coffeeBeanArt({ size = 40, className = "", rotate = -24, filled = true } = {}) {
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" class="${className}" width="${size}" height="${size}"
+     viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">
+  <g transform="rotate(${rotate} 16 16)">
+    <ellipse cx="16" cy="16" rx="13" ry="8.4"
+             ${filled ? 'fill="currentColor"' : 'stroke="currentColor" stroke-width="1.6"'} />
+    <path d="M4.5 16 C9 10.5 23 21.5 27.5 16"
+          fill="none" stroke="${filled ? "var(--cream, #FBF7F1)" : "currentColor"}"
+          stroke-width="${filled ? 1.9 : 1.4}" stroke-linecap="round" />
+  </g>
+</svg>`;
+}
+
 /** A dallah — the Arabic coffee pot. Used on the empty state. */
 export function dallahArt({ size = 132, className = "", stroke = 2.2 } = {}) {
   return `

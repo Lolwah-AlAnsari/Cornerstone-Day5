@@ -175,6 +175,7 @@ const DICT = {
     claimedToast: "Collected: {name}",
     rewardCollected: "Collected",
     rewardProgress: "{have} of {need}",
+    seeAllRewards: "See all",
 
     tier_guest: "Guest",
     tier_regular: "Regular",
@@ -400,6 +401,7 @@ const DICT = {
     claimedToast: "تم الاستلام: {name}",
     rewardCollected: "تم الاستلام",
     rewardProgress: "{have} من {need}",
+    seeAllRewards: "عرض الكل",
 
     tier_guest: "ضيف",
     tier_regular: "زبون دائم",

@@ -8,7 +8,7 @@ import { configured, supabase } from "./supabase.js";
 import { initLang, t, num, formatDate, getLang, toggleLang, onLangChange } from "./i18n.js";
 import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyAuthError, resendConfirmation } from "./auth.js";
 import { listLogs, createLog, updateLog, deleteLog, computeStats, computeInsights, withCoordinates } from "./logs.js";
-import { dallahArt, finjanArt, icedCoffeeArt } from "./art.js";
+import { dallahArt, finjanArt, icedCoffeeArt, coffeeBeanArt } from "./art.js";
 import { loadLeaflet, createBaseMap, salfaMarker, fitToPoints, searchPlaces, DEFAULT_CENTER } from "./map.js";
 import { computeRewards, listClaims, claimReward } from "./rewards.js";
 
@@ -132,6 +132,45 @@ function busy(button, on, labelWhenBusy) {
   } else if (button.dataset.label) {
     button.textContent = button.dataset.label;
   }
+}
+
+/* ------------------------------ background ------------------------------ */
+
+/**
+ * Scatters coffee beans behind the page.
+ *
+ * Positions are deterministic rather than random, so the composition is the
+ * same on every load and can be judged once. Beans "further back" are smaller,
+ * fainter and drift less, which reads as depth. Painted once at boot; the
+ * layer sits behind everything and never takes pointer events.
+ */
+function paintBeans() {
+  const host = document.getElementById("beans");
+  if (!host || host.childElementCount) return;
+
+  // x%, y%, size, rotation, depth 0 (near) → 1 (far)
+  const FIELD = [
+    [4, 12, 92, -18, 0.15], [17, 68, 54, 34, 0.6], [9, 88, 120, 8, 0.1],
+    [28, 26, 40, -52, 0.75], [34, 82, 74, 21, 0.35], [46, 8, 58, 66, 0.55],
+    [52, 46, 34, -12, 0.85], [61, 74, 104, -38, 0.2], [70, 18, 46, 44, 0.65],
+    [78, 58, 78, -6, 0.3], [88, 32, 62, 28, 0.5], [93, 84, 44, -44, 0.7],
+    [23, 44, 28, 14, 0.9], [66, 94, 36, -26, 0.8], [84, 6, 30, 52, 0.88],
+  ];
+
+  host.innerHTML = FIELD.map(([x, y, size, rot, depth], i) => {
+    const opacity = (0.115 - depth * 0.085).toFixed(3);
+    const travel = Math.round(30 - depth * 22);
+    const duration = 22 + depth * 20 + (i % 4) * 3;
+    return `<span style="
+      left:${x}%; top:${y}%;
+      opacity:${opacity};
+      --dx:${i % 2 ? travel * 0.4 : -travel * 0.4}px;
+      --dy:${-travel}px;
+      --dr:${i % 3 ? 7 : -6}deg;
+      --dur:${duration}s;
+      --delay:${-(i * 1.7).toFixed(1)}s;
+    ">${coffeeBeanArt({ size, rotate: rot })}</span>`;
+  }).join("");
 }
 
 /* ------------------------------ chrome ------------------------------ */
@@ -477,6 +516,7 @@ function renderDashboard() {
     </div>`;
 
   wireCollection();
+  wireRewards();
 }
 
 /**
@@ -688,28 +728,50 @@ const REWARD_ART = {
   iced: (size) => icedCoffeeArt({ size }),
 };
 
-/** The tier + points strip shown on the dashboard. */
+/**
+ * Rewards in the main frame of the dashboard: the tier and progress, then the
+ * rewards that actually matter right now — anything ready to collect, and the
+ * nearest few still to earn. The full shelf stays at #/rewards.
+ */
 function renderLoyaltyStrip() {
   if (state.logs === null || state.claims === null) return "";
   const r = rewardState();
 
+  const nextUp = r.nextTier
+    ? t("toNextTier", { n: num(r.pointsToNext), tier: t(`tier_${r.nextTier.key}`) })
+    : t("topTier");
+
+  // Ready first, then the closest to being earned, so the row is always useful.
+  const ready = r.rewards.filter((x) => x.earned && !x.claimed);
+  const closest = r.rewards
+    .filter((x) => !x.earned)
+    .sort((a, b) => b.have / b.need - a.have / a.need);
+  const featured = [...ready, ...closest].slice(0, 3);
+
   return `
-    <a class="loyalty" href="#/rewards">
-      <div class="loyalty__art" aria-hidden="true">${REWARD_ART.dallah(44)}</div>
-      <div class="loyalty__body">
-        <p class="loyalty__tier">${esc(t(`tier_${r.tier.key}`))}</p>
-        <p class="loyalty__points">${esc(t("pointsCount", { n: num(r.points) }))}</p>
-        <div class="bar" role="img" aria-label="${esc(
-          r.nextTier ? t("toNextTier", { n: num(r.pointsToNext), tier: t(`tier_${r.nextTier.key}`) }) : t("topTier")
-        )}">
-          <span style="width:${Math.round(r.tierProgress * 100)}%"></span>
+    <section class="loyaltyframe" aria-label="${esc(t("rewardsTitle"))}">
+      <div class="loyaltyframe__head">
+        <div class="loyalty__art" aria-hidden="true">${REWARD_ART.dallah(46)}</div>
+        <div class="loyaltyframe__meta">
+          <p class="loyalty__tier">${esc(t(`tier_${r.tier.key}`))}</p>
+          <p class="loyalty__points">${esc(t("pointsCount", { n: num(r.points) }))}</p>
+          <div class="bar" role="img" aria-label="${esc(nextUp)}">
+            <span style="width:${Math.round(r.tierProgress * 100)}%"></span>
+          </div>
+          <p class="loyalty__next">${esc(nextUp)}</p>
         </div>
-        <p class="loyalty__next">${esc(
-          r.nextTier ? t("toNextTier", { n: num(r.pointsToNext), tier: t(`tier_${r.nextTier.key}`) }) : t("topTier")
-        )}</p>
+        <div class="loyaltyframe__aside">
+          ${r.readyToClaim ? `<span class="loyalty__ready">${esc(t("readyToClaim", { n: num(r.readyToClaim) }))}</span>` : ""}
+          <a class="btn btn--quiet" href="#/rewards">${esc(t("seeAllRewards"))}</a>
+        </div>
       </div>
-      ${r.readyToClaim ? `<span class="loyalty__ready">${esc(t("readyToClaim", { n: num(r.readyToClaim) }))}</span>` : ""}
-    </a>`;
+
+      ${
+        featured.length
+          ? `<div class="rewards rewards--row">${featured.map(rewardCard).join("")}</div>`
+          : ""
+      }
+    </section>`;
 }
 
 function renderRewardsView() {
@@ -784,7 +846,9 @@ function wireRewards() {
       try {
         await claimReward(key);
         state.claims = new Set([...(state.claims ?? []), key]);
-        renderRewardsView();
+        // Claiming is offered on the dashboard as well as the shelf.
+        if (location.hash === "#/dashboard") renderDashboard();
+        else renderRewardsView();
         toast(t("claimedToast", { name: t(`reward_${key}`) }));
       } catch (error) {
         busy(button, false);
@@ -1372,6 +1436,7 @@ function route() {
 /* ------------------------------ boot ------------------------------ */
 
 initLang();
+paintBeans();
 
 langBtn.addEventListener("click", () => toggleLang());
 onLangChange(() => route());

@@ -65,12 +65,49 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: -3;
   background:
     radial-gradient(80ch 60ch at 85% -10%, var(--sand-wash) 0%, transparent 60%),
     radial-gradient(70ch 50ch at 0% 100%, var(--cream-deep) 0%, transparent 55%);
   opacity: 0.75;
   pointer-events: none;
+}
+
+/* Vignette: darker at the edges, so the page reads as lit rather than flat.
+   This is what makes the background feel cinematic rather than merely tinted. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(125% 95% at 50% 38%, transparent 52%, rgba(46, 31, 26, 0.085) 100%);
+}
+
+/* ============================ Coffee beans ============================ */
+
+.beans {
+  position: fixed;
+  inset: 0;
+  z-index: -2;            /* above the warm gradients, below the vignette */
+  overflow: hidden;
+  pointer-events: none;
+}
+.beans span {
+  position: absolute;
+  line-height: 0;
+  color: var(--coffee);
+  will-change: transform;
+  animation: beandrift var(--dur, 26s) ease-in-out var(--delay, 0s) infinite alternate;
+}
+/* Beans set further back drift less and sit fainter — a cheap parallax. */
+@keyframes beandrift {
+  from { transform: translate3d(0, 0, 0) rotate(0deg); }
+  to   { transform: translate3d(var(--dx, 10px), var(--dy, -22px), 0) rotate(var(--dr, 9deg)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beans span { animation: none; }
 }
 
 h1, h2, h3 { font-family: var(--display); font-weight: 500; line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
@@ -343,18 +380,23 @@ html[lang="ar"] .stat__label { letter-spacing: 0; text-transform: none; font-siz
   border-radius: var(--r-pill); font-size: 0.68rem; font-weight: 600;
 }
 
-/* Tier + points strip on the dashboard. */
-.loyalty {
-  display: flex; align-items: center; gap: clamp(0.9rem, 3vw, 1.4rem);
-  background: var(--paper); border: 1px solid var(--line-soft); border-radius: var(--r-md);
-  padding: clamp(0.9rem, 3vw, 1.25rem);
+/* Rewards in the dashboard's main frame. */
+.loyaltyframe {
+  background: var(--paper); border: 1px solid var(--line-soft); border-radius: var(--r-lg);
+  padding: clamp(1rem, 3.2vw, 1.5rem);
   box-shadow: var(--shadow-sm);
   margin-bottom: clamp(1.75rem, 4vw, 2.5rem);
-  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), border-color 0.2s var(--ease);
 }
-.loyalty:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: color-mix(in srgb, var(--sand) 35%, transparent); }
+.loyaltyframe__head { display: flex; align-items: center; gap: clamp(0.9rem, 3vw, 1.4rem); flex-wrap: wrap; }
+.loyaltyframe__meta { flex: 1; min-width: 180px; }
+.loyaltyframe__aside { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+
+/* The featured row sits inside the frame, so the cards read as one unit. */
+.rewards--row { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--line-soft); }
+.rewards--row .reward { box-shadow: none; background: var(--cream); }
+.rewards--row .reward--claimed { background: linear-gradient(160deg, var(--cream), var(--sand-wash)); }
+
 .loyalty__art { color: var(--sand); flex: none; line-height: 0; }
-.loyalty__body { flex: 1; min-width: 0; }
 .loyalty__tier { font-family: var(--display); font-size: clamp(1.15rem, 3.4vw, 1.5rem); line-height: 1.2; }
 .loyalty__points { font-size: 0.82rem; color: var(--sand); margin-top: 0.1rem; }
 .loyalty__next { font-size: 0.78rem; color: var(--coffee-soft); margin-top: 0.35rem; }
