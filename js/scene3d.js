@@ -203,7 +203,11 @@ export async function mountHeroScene(container) {
   straw.rotation.z = -0.32;
   iced.add(straw);
 
-  iced.position.set(1.62, 0.0, -0.4);
+  // Same depth and same rendered height as the dala. The glass is naturally
+  // shorter (about 1.86 units against the dala's 2.65), so it takes the larger
+  // scale to finish the same size on screen.
+  iced.position.set(0.92, 0, 0.2);
+  iced.scale.setScalar(0.83);
   world.add(iced);
 
   /* ------------------------ the Arabic dala, in front ------------------------ */
@@ -260,13 +264,13 @@ export async function mountHeroScene(container) {
   dala.add(flat(drawDalaHandle, 2.6 * POT_UNIT, drawDalaHandleHole));
 
   // Forward on Z, so perspective gives it presence without needing extra scale.
-  dala.position.set(-0.7, -0.25, 1.25);
-  dala.scale.setScalar(1.22);
+  dala.position.set(-0.92, 0, 0.2);
+  dala.scale.setScalar(0.645);
   world.add(dala);
 
   /* --------------------------- motion + dragging --------------------------- */
   // Centre the pair in frame.
-  world.position.y = -0.55;
+  world.position.y = -0.12;
 
   // Drag spins each object on its own axis. Rotating the parent group instead
   // would make the two orbit each other and swap sides, which wrecks the layout.
