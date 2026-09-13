@@ -333,6 +333,74 @@ html[dir="rtl"] .toggle input:checked + .toggle__track::after { transform: trans
 .stat__label { font-size: 0.7rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--coffee-soft); margin-top: 0.5rem; }
 html[lang="ar"] .stat__label { letter-spacing: 0; text-transform: none; font-size: 0.82rem; }
 
+/* ============================ Rewards ============================ */
+
+/* A count on the Rewards button when something is waiting. */
+.pip {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px;
+  margin-inline-start: 0.45rem; padding: 0 5px;
+  background: var(--sand); color: #fff;
+  border-radius: var(--r-pill); font-size: 0.68rem; font-weight: 600;
+}
+
+/* Tier + points strip on the dashboard. */
+.loyalty {
+  display: flex; align-items: center; gap: clamp(0.9rem, 3vw, 1.4rem);
+  background: var(--paper); border: 1px solid var(--line-soft); border-radius: var(--r-md);
+  padding: clamp(0.9rem, 3vw, 1.25rem);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: clamp(1.75rem, 4vw, 2.5rem);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.loyalty:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: color-mix(in srgb, var(--sand) 35%, transparent); }
+.loyalty__art { color: var(--sand); flex: none; line-height: 0; }
+.loyalty__body { flex: 1; min-width: 0; }
+.loyalty__tier { font-family: var(--display); font-size: clamp(1.15rem, 3.4vw, 1.5rem); line-height: 1.2; }
+.loyalty__points { font-size: 0.82rem; color: var(--sand); margin-top: 0.1rem; }
+.loyalty__next { font-size: 0.78rem; color: var(--coffee-soft); margin-top: 0.35rem; }
+.loyalty__ready {
+  flex: none; align-self: flex-start;
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--sand); background: var(--sand-wash);
+  padding: 0.3rem 0.65rem; border-radius: var(--r-pill); white-space: nowrap;
+}
+html[lang="ar"] .loyalty__ready { letter-spacing: 0; text-transform: none; }
+
+.bar { height: 6px; border-radius: var(--r-pill); background: var(--cream-deep); overflow: hidden; margin-top: 0.55rem; }
+.bar span { display: block; height: 100%; background: var(--sand); border-radius: inherit; transition: width 0.5s var(--ease); }
+.bar--small { height: 5px; margin-top: 0.75rem; }
+
+/* The shelf. */
+.rewards { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+@media (min-width: 620px) { .rewards { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 980px) { .rewards { grid-template-columns: repeat(3, 1fr); } }
+
+.reward {
+  display: flex; flex-direction: column; gap: 0.35rem;
+  background: var(--paper); border: 1px solid var(--line-soft); border-radius: var(--r-md);
+  padding: 1.25rem; box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.reward__art { color: var(--sand); line-height: 0; margin-bottom: 0.35rem; }
+.reward__name { font-family: var(--display); font-size: 1.25rem; line-height: 1.2; }
+.reward__desc { font-size: 0.88rem; color: var(--coffee-mid); }
+.reward__progress { font-size: 0.78rem; color: var(--coffee-soft); }
+.reward__points { font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sand); margin-top: auto; padding-top: 0.75rem; }
+html[lang="ar"] .reward__points { letter-spacing: 0; text-transform: none; font-size: 0.8rem; }
+.reward__claim { margin-top: 0.75rem; }
+.reward__status { font-size: 0.85rem; font-weight: 600; color: var(--ok); margin-top: 0.75rem; }
+
+/* Locked rewards recede; collected ones are quietly celebrated. */
+.reward--locked { opacity: 0.72; }
+.reward--locked .reward__art { color: var(--line); }
+.reward--ready { border-color: color-mix(in srgb, var(--sand) 55%, transparent); transform: translateY(-2px); }
+.reward--claimed { background: linear-gradient(160deg, var(--paper), var(--sand-wash)); border-color: color-mix(in srgb, var(--sand) 30%, transparent); }
+
+.rewards__note {
+  font-size: 0.82rem; color: var(--coffee-soft); max-width: 62ch;
+  margin: 1.5rem 0 clamp(2rem, 5vw, 3rem);
+}
+
 /* Insights — same card language as the stat tiles, one step quieter. */
 .insights { margin-bottom: clamp(1.75rem, 4vw, 2.5rem); }
 .insights__title { font-size: 1.4rem; margin-bottom: 1rem; }

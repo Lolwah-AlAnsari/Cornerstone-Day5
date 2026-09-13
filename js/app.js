@@ -10,6 +10,7 @@ import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyA
 import { listLogs, createLog, updateLog, deleteLog, computeStats, computeInsights, withCoordinates } from "./logs.js";
 import { dallahArt, finjanArt, icedCoffeeArt } from "./art.js";
 import { loadLeaflet, createBaseMap, salfaMarker, fitToPoints, searchPlaces, DEFAULT_CENTER } from "./map.js";
+import { computeRewards, listClaims, claimReward } from "./rewards.js";
 
 const viewEl = document.getElementById("view");
 const topbarAuthEl = document.getElementById("topbarAuth");
@@ -27,6 +28,7 @@ const state = {
   notice: null,      // { kind, message, offerResend } shown on the auth screens
   query: "",         // dashboard search text
   filter: "all",     // "all" | "favourites" | "top"
+  claims: null,      // Set of collected reward keys, null until loaded
 };
 
 /** Teardown for the hero's WebGL scene, so leaving the landing page frees it. */
@@ -144,6 +146,7 @@ function renderChrome() {
     document.getElementById("logoutBtn").addEventListener("click", async () => {
       await logOut();
       state.logs = null;
+      state.claims = null;
       go("#/");
     });
   } else {
@@ -416,6 +419,7 @@ function renderDashboard() {
           <p class="dash__sub">${esc(t("dashSub"))}</p>
         </div>
         <div class="dash__actions">
+          <a class="btn btn--ghost" href="#/rewards">${esc(t("viewRewards"))}${rewardBadgeMarkup()}</a>
           <a class="btn btn--ghost" href="#/map">${esc(t("viewMap"))}</a>
           <a class="btn btn--desktop-add" href="#/add">${esc(t("addGahwa"))}</a>
         </div>
@@ -426,6 +430,8 @@ function renderDashboard() {
         <div class="stat"><p class="stat__n stat__n--sand">${esc(num(stats.favourites))}</p><p class="stat__label">${esc(t("statFavs"))}</p></div>
         <div class="stat"><p class="stat__n">${stats.best ? esc(num(stats.best)) + `<small style="font-size:.5em;opacity:.5">/${esc(num(5))}</small>` : "—"}</p><p class="stat__label">${esc(t("statBest"))}</p></div>
       </section>
+
+      ${renderLoyaltyStrip()}
 
       ${renderInsights(logs ?? [])}
 
@@ -657,8 +663,147 @@ async function loadLogs() {
     state.loadingLogs = false;
     if (location.hash === "#/dashboard") renderDashboard();
     else if (location.hash === "#/map") renderMapView();
+    else if (location.hash === "#/rewards") renderRewardsView();
     else if (location.hash.startsWith("#/edit/")) route();
   }
+}
+
+/* ------------------------------ rewards ------------------------------ */
+
+/** Everything the rewards UI needs, from the logs and claims already loaded. */
+function rewardState() {
+  return computeRewards(state.logs ?? [], state.claims ?? new Set());
+}
+
+/** A count on the Rewards button when something is waiting to be collected. */
+function rewardBadgeMarkup() {
+  if (state.logs === null || state.claims === null) return "";
+  const { readyToClaim } = rewardState();
+  return readyToClaim ? `<span class="pip">${esc(num(readyToClaim))}</span>` : "";
+}
+
+const REWARD_ART = {
+  dallah: (size) => dallahArt({ size, stroke: 4.2 }),
+  finjan: (size) => finjanArt({ size, steam: false }),
+  iced: (size) => icedCoffeeArt({ size }),
+};
+
+/** The tier + points strip shown on the dashboard. */
+function renderLoyaltyStrip() {
+  if (state.logs === null || state.claims === null) return "";
+  const r = rewardState();
+
+  return `
+    <a class="loyalty" href="#/rewards">
+      <div class="loyalty__art" aria-hidden="true">${REWARD_ART.dallah(44)}</div>
+      <div class="loyalty__body">
+        <p class="loyalty__tier">${esc(t(`tier_${r.tier.key}`))}</p>
+        <p class="loyalty__points">${esc(t("pointsCount", { n: num(r.points) }))}</p>
+        <div class="bar" role="img" aria-label="${esc(
+          r.nextTier ? t("toNextTier", { n: num(r.pointsToNext), tier: t(`tier_${r.nextTier.key}`) }) : t("topTier")
+        )}">
+          <span style="width:${Math.round(r.tierProgress * 100)}%"></span>
+        </div>
+        <p class="loyalty__next">${esc(
+          r.nextTier ? t("toNextTier", { n: num(r.pointsToNext), tier: t(`tier_${r.nextTier.key}`) }) : t("topTier")
+        )}</p>
+      </div>
+      ${r.readyToClaim ? `<span class="loyalty__ready">${esc(t("readyToClaim", { n: num(r.readyToClaim) }))}</span>` : ""}
+    </a>`;
+}
+
+function renderRewardsView() {
+  if (state.logs === null || state.claims === null) {
+    viewEl.innerHTML = `<div class="shell section"><p class="dash__sub">${esc(t("loading"))}</p></div>`;
+    return;
+  }
+
+  const r = rewardState();
+
+  viewEl.innerHTML = `
+    <div class="shell">
+      <header class="dash__head">
+        <div>
+          <p class="eyebrow">SĀLFA</p>
+          <h1 class="dash__greet">${esc(t("rewardsTitle"))}</h1>
+          <p class="dash__sub">${esc(t("rewardsSub"))}</p>
+        </div>
+        <a class="btn btn--ghost" href="#/dashboard">${esc(t("backToDash"))}</a>
+      </header>
+
+      <section class="stats" aria-label="${esc(t("rewardsTitle"))}">
+        <div class="stat"><p class="stat__n">${esc(num(r.points))}</p><p class="stat__label">${esc(t("statPoints"))}</p></div>
+        <div class="stat"><p class="stat__n stat__n--sand">${esc(num(r.collected))}<small style="font-size:.5em;opacity:.5">/${esc(num(r.rewards.length))}</small></p><p class="stat__label">${esc(t("statCollected"))}</p></div>
+        <div class="stat"><p class="stat__n" style="font-family:var(--display);font-size:clamp(1.3rem,4vw,1.9rem)">${esc(t(`tier_${r.tier.key}`))}</p><p class="stat__label">${esc(t("statTier"))}</p></div>
+      </section>
+
+      <section class="insights">
+        <h2 class="insights__title">${esc(t("rewardsShelf"))}</h2>
+        <div class="rewards">
+          ${r.rewards.map(rewardCard).join("")}
+        </div>
+      </section>
+
+      <p class="rewards__note">${esc(t("rewardsNote"))}</p>
+    </div>
+
+    <div class="mobilebar">
+      <a class="btn btn--block" href="#/add">${esc(t("addGahwa"))}</a>
+    </div>`;
+
+  wireRewards();
+}
+
+function rewardCard(reward) {
+  const state_ = reward.claimed ? "claimed" : reward.earned ? "ready" : "locked";
+  const pct = Math.round((reward.have / reward.need) * 100);
+
+  return `
+    <div class="reward reward--${state_}">
+      <div class="reward__art" aria-hidden="true">${REWARD_ART[reward.art](46)}</div>
+      <h3 class="reward__name">${esc(t(`reward_${reward.key}`))}</h3>
+      <p class="reward__desc">${esc(t(`rewardDesc_${reward.key}`))}</p>
+
+      ${
+        reward.claimed
+          ? `<p class="reward__status">✓ ${esc(t("rewardCollected"))}</p>`
+          : reward.earned
+            ? `<button class="btn btn--sand reward__claim" type="button" data-claim="${esc(reward.key)}">${esc(t("claimGift"))}</button>`
+            : `<div class="bar bar--small"><span style="width:${pct}%"></span></div>
+               <p class="reward__progress">${esc(t("rewardProgress", { have: num(reward.have), need: num(reward.need) }))}</p>`
+      }
+      <p class="reward__points">+${esc(num(reward.points))} ${esc(t("pointsWord"))}</p>
+    </div>`;
+}
+
+function wireRewards() {
+  viewEl.querySelectorAll("[data-claim]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const key = button.dataset.claim;
+      busy(button, true, t("claiming"));
+      try {
+        await claimReward(key);
+        state.claims = new Set([...(state.claims ?? []), key]);
+        renderRewardsView();
+        toast(t("claimedToast", { name: t(`reward_${key}`) }));
+      } catch (error) {
+        busy(button, false);
+        toast(t("errGeneric"), "error");
+        console.error("[salfa] claim failed:", error);
+      }
+    });
+  });
+}
+
+async function loadClaims() {
+  try {
+    state.claims = await listClaims();
+  } catch (error) {
+    state.claims = new Set();
+    console.error("[salfa] failed to load reward claims:", error);
+  }
+  if (location.hash === "#/rewards") renderRewardsView();
+  else if (location.hash === "#/dashboard") renderDashboard();
 }
 
 /* ------------------------------ map view ------------------------------ */
@@ -1171,7 +1316,7 @@ function route() {
   if (hash !== "#/add") { pickerMap?.remove(); pickerMap = null; }
 
   // Guests never reach the app; members never see the marketing pages.
-  if (!signedIn && (hash === "#/dashboard" || hash === "#/add" || hash === "#/map" || editId)) return go("#/login");
+  if (!signedIn && (hash === "#/dashboard" || hash === "#/add" || hash === "#/map" || hash === "#/rewards" || editId)) return go("#/login");
   if (signedIn && (hash === "#/" || hash === "#/login" || hash === "#/signup")) return go("#/dashboard");
 
   renderChrome();
@@ -1201,6 +1346,7 @@ function route() {
     case "#/dashboard":
       renderDashboard();
       if (state.logs === null) loadLogs();
+      if (state.claims === null) loadClaims();
       break;
     case "#/add":
       renderAddView();
@@ -1208,6 +1354,11 @@ function route() {
     case "#/map":
       renderMapView();
       if (state.logs === null) loadLogs();
+      break;
+    case "#/rewards":
+      renderRewardsView();
+      if (state.logs === null) loadLogs();
+      if (state.claims === null) loadClaims();
       break;
     default:
       renderLanding();
@@ -1262,7 +1413,7 @@ window.addEventListener("hashchange", route);
   onAuthChange((session) => {
     const changed = session?.user?.id !== state.session?.user?.id;
     state.session = session;
-    if (changed) state.logs = null;
+    if (changed) { state.logs = null; state.claims = null; }
     route();
   });
 
