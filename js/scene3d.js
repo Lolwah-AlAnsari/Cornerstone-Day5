@@ -26,18 +26,49 @@ const HANDLE = [[12, 46], [42, 52], [50, 78], [28, 94]];
 const POT_BASE = 116;
 const POT_UNIT = 0.024;
 
-/* --- the Arabic dala out front: slimmer, taller, with a far longer spout ---
-   Deliberately distinct from the pot behind it — a pronounced waist, a tall
-   neck, and a crescent that rises past the lid, which is the silhouette a
-   Kuwaiti dallah is recognised by. */
+/* --- the Arabic dala out front, modelled on a real one ---
+   Two bulges with a pinched waist between them, an onion lid under a
+   bulb-and-spike finial, a broad flat crescent blade for a spout, and an
+   angular strap handle. The spout and handle are extruded flat shapes rather
+   than swept tubes, because on a real dallah they are cut from sheet. */
 const DALA_PROFILE = [
-  [0, 116], [18, 116], [19.5, 114], [22.5, 107], [24, 97], [23, 86],
-  [20, 74], [17, 64], [15, 56], [14, 50], [14, 46],
-  [17.5, 45], [17.5, 41], [12, 40], [12, 34],
-  [10, 33], [7, 26], [4, 20], [1.5, 15],
+  [0, 116], [24, 116], [28, 113], [31, 106], [31, 98], [29, 89],
+  [25, 81], [20, 75], [18, 71],                     // waist
+  [19, 66], [22, 60], [25, 55], [26, 50],           // upper bulge
+  [25, 46], [24, 43],                               // collar
+  [25, 41], [24, 38], [21, 34], [15, 28], [8, 22], [4.5, 18],
 ];
-const DALA_SPOUT = [[-13, 50], [-29, 39], [-43, 25], [-51, 9]];
-const DALA_HANDLE = [[12, 44], [41, 49], [49, 74], [26, 93]];
+
+/**
+ * The crescent blade, drawn with curves rather than a point list — straight
+ * segments between points turn the crescent into a wedge. Coordinates are in
+ * the same space as the profiles; `p` maps them into the scene.
+ */
+function drawDalaSpout(shape, p) {
+  shape.moveTo(...p(-19, 43));
+  // top edge: out and up, then hooking down to the point
+  shape.bezierCurveTo(...p(-34, 27), ...p(-52, 17), ...p(-69, 33));
+  shape.lineTo(...p(-63, 41));                       // the tip's thickness
+  // underside: back in towards the body
+  shape.bezierCurveTo(...p(-53, 29), ...p(-38, 40), ...p(-19, 51));
+  shape.closePath();
+}
+
+/** The strap handle: angular outside, angular hole, like the reference. */
+function drawDalaHandle(shape, p) {
+  shape.moveTo(...p(23, 44));
+  shape.lineTo(...p(47, 53));
+  shape.lineTo(...p(50, 92));
+  shape.lineTo(...p(24, 99));
+  shape.closePath();
+}
+function drawDalaHandleHole(path, p) {
+  path.moveTo(...p(29, 53));
+  path.lineTo(...p(41, 59));
+  path.lineTo(...p(43, 85));
+  path.lineTo(...p(29, 91));
+  path.closePath();
+}
 
 /* --- iced coffee, from the 60×60 glyph --- */
 const GLASS_PROFILE = [
@@ -85,6 +116,34 @@ export async function mountHeroScene(container) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.append(renderer.domElement);
+
+  /* A metal surface shows its surroundings, so without an environment to
+     reflect a high-metalness material renders almost black. Rather than
+     download an HDRI, paint a small sky-to-ground gradient and use that:
+     bright above, warm cream at the horizon, dusk below. */
+  const envCanvas = document.createElement("canvas");
+  envCanvas.width = 128;              // equirectangular wants 2:1
+  envCanvas.height = 64;
+  const ectx = envCanvas.getContext("2d");
+  const grad = ectx.createLinearGradient(0, 0, 0, 64);
+  grad.addColorStop(0, "#ffffff");
+  grad.addColorStop(0.42, "#fbf3e6");
+  grad.addColorStop(0.58, "#e6d8c4");
+  grad.addColorStop(1, "#6f6154");
+  ectx.fillStyle = grad;
+  ectx.fillRect(0, 0, 128, 64);
+
+  const envTex = new THREE.CanvasTexture(envCanvas);
+  envTex.mapping = THREE.EquirectangularReflectionMapping;
+  envTex.colorSpace = THREE.SRGBColorSpace;
+
+  // Prefilter it. A raw equirect texture is not a usable reflection source for
+  // roughness-based shading, which is why an unfiltered one leaves metal black.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envRT = pmrem.fromEquirectangular(envTex);
+  scene.environment = envRT.texture;
+  envTex.dispose();
+  pmrem.dispose();
 
   scene.add(new THREE.HemisphereLight(0xfff6e8, 0x8a7268, 1.1));
   const key = new THREE.DirectionalLight(0xfff1dc, 2.1);
@@ -179,19 +238,56 @@ export async function mountHeroScene(container) {
   world.add(iced);
 
   /* ------------------------ the Arabic dala, in front ------------------------ */
+  // Polished steel rather than brass, matching a real dallah.
+  const steel = new THREE.MeshStandardMaterial({
+    color: 0xe4e5e2, metalness: 0.82, roughness: 0.16,
+  });
+
   const dala = new THREE.Group();
 
   dala.add(new THREE.Mesh(
     new THREE.LatheGeometry(DALA_PROFILE.map(([r, y]) => new THREE.Vector2(r * POT_UNIT, potY(y))), 96),
-    brass
+    steel
   ));
 
-  const dalaFinial = new THREE.Mesh(new THREE.SphereGeometry(3.2 * POT_UNIT, 24, 16), brass);
-  dalaFinial.position.y = potY(11);
-  dala.add(dalaFinial);
+  // Finial: a small bulb under a spike, the way the reference is topped.
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(4.4 * POT_UNIT, 24, 18), steel);
+  bulb.position.y = potY(13);
+  bulb.scale.y = 1.25;
+  dala.add(bulb);
 
-  dala.add(sweep(DALA_SPOUT, 2.5 * POT_UNIT));
-  dala.add(sweep(DALA_HANDLE, 2.3 * POT_UNIT));
+  const spike = new THREE.Mesh(
+    new THREE.ConeGeometry(1.7 * POT_UNIT, 7 * POT_UNIT, 18),
+    steel
+  );
+  spike.position.y = potY(5.5);
+  dala.add(spike);
+
+  // Flat parts are extruded shapes, not swept tubes: on a real dallah the
+  // spout and handle are cut from sheet, and a round tube reads as a spigot.
+  const flat = (draw, depth, drawHole) => {
+    const p = (x, y) => [x * POT_UNIT, potY(y)];
+    const shape = new THREE.Shape();
+    draw(shape, p);
+    if (drawHole) {
+      const hole = new THREE.Path();
+      drawHole(hole, p);
+      shape.holes.push(hole);
+    }
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth,
+      bevelEnabled: true,
+      bevelThickness: depth * 0.14,
+      bevelSize: depth * 0.12,
+      bevelSegments: 3,
+      curveSegments: 24,
+    });
+    geo.translate(0, 0, -depth / 2);   // centre the thickness on the body
+    return new THREE.Mesh(geo, steel);
+  };
+
+  dala.add(flat(drawDalaSpout, 4.2 * POT_UNIT));
+  dala.add(flat(drawDalaHandle, 2.6 * POT_UNIT, drawDalaHandleHole));
 
   // Forward on Z, so perspective gives it presence without needing extra scale.
   dala.position.set(-0.08, -0.14, 1.55);
