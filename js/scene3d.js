@@ -1,28 +1,20 @@
 /* ==========================================================================
    SĀLFA — the hero scene in three dimensions.
 
-   A brass dallah and a glass of iced coffee, both built from the same
-   silhouettes the 2D line art uses in art.js. Bodies of revolution (the pot,
-   the lid, the tumbler) are lathes; the spout, handle, straw and ice are
-   swept tubes and boxes.
+   A dallah and a glass of iced coffee. Bodies of revolution (the pot, its
+   lid, the tumbler) are lathes; the spout and handle are flat shapes extruded
+   from curves, because on a real dallah they are cut from sheet; the straw and
+   ice are a cylinder and boxes.
 
-   Each object turns on its own axis, and the pair can be dragged to spin with
-   a little momentum. three.js is fetched from a CDN only when it will be used:
+   Both objects turn on their own axis, and the pair can be dragged to spin
+   with a little momentum. three.js is fetched from a CDN only when it will be used:
    never on mobile, never with reduced motion, never without WebGL. Every
    failure path leaves the flat CSS artwork in place.
    ========================================================================== */
 
 const THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
-/* --- dallah, in the coordinates art.js draws with (y downward) --- */
-const POT_PROFILE = [
-  [0, 116], [14, 116], [15.5, 115], [21, 110], [26, 100], [28, 90],
-  [27, 80], [23, 71], [18.5, 64], [16, 57], [14.5, 50], [14, 48],
-  [16.5, 47], [16.5, 43], [12, 42], [12, 38],
-  [10, 37], [7.5, 30], [4.5, 24], [1.6, 19.5],
-];
-const SPOUT = [[-14, 52], [-26, 44], [-38, 32], [-45, 22]];
-const HANDLE = [[12, 46], [42, 52], [50, 78], [28, 94]];
+/* Shared coordinate space for the dala: y runs downward, as in art.js. */
 const POT_BASE = 116;
 const POT_UNIT = 0.024;
 
@@ -45,28 +37,28 @@ const DALA_PROFILE = [
  * the same space as the profiles; `p` maps them into the scene.
  */
 function drawDalaSpout(shape, p) {
-  shape.moveTo(...p(-19, 43));
-  // top edge: out and up, then hooking down to the point
-  shape.bezierCurveTo(...p(-34, 27), ...p(-52, 17), ...p(-69, 33));
-  shape.lineTo(...p(-63, 41));                       // the tip's thickness
-  // underside: back in towards the body
-  shape.bezierCurveTo(...p(-53, 29), ...p(-38, 40), ...p(-19, 51));
+  // Wide where it meets the body, tapering to an actual point at the tip.
+  // The first attempt ran the two edges nearly parallel, which made the blade
+  // thicker at the tip than the base and read as a wedge rather than a crescent.
+  shape.moveTo(...p(-17, 37));
+  shape.bezierCurveTo(...p(-40, 21), ...p(-61, 19), ...p(-73, 29));  // top edge to the point
+  shape.bezierCurveTo(...p(-57, 40), ...p(-37, 49), ...p(-17, 56));  // concave underside
   shape.closePath();
 }
 
 /** The strap handle: angular outside, angular hole, like the reference. */
 function drawDalaHandle(shape, p) {
-  shape.moveTo(...p(23, 44));
-  shape.lineTo(...p(47, 53));
-  shape.lineTo(...p(50, 92));
-  shape.lineTo(...p(24, 99));
+  shape.moveTo(...p(23, 45));
+  shape.lineTo(...p(45, 54));
+  shape.lineTo(...p(48, 90));
+  shape.lineTo(...p(24, 97));
   shape.closePath();
 }
 function drawDalaHandleHole(path, p) {
-  path.moveTo(...p(29, 53));
-  path.lineTo(...p(41, 59));
-  path.lineTo(...p(43, 85));
-  path.lineTo(...p(29, 91));
+  path.moveTo(...p(28, 53));
+  path.lineTo(...p(40, 60));
+  path.lineTo(...p(42, 84));
+  path.lineTo(...p(28, 90));
   path.closePath();
 }
 
@@ -127,9 +119,9 @@ export async function mountHeroScene(container) {
   const ectx = envCanvas.getContext("2d");
   const grad = ectx.createLinearGradient(0, 0, 0, 64);
   grad.addColorStop(0, "#ffffff");
-  grad.addColorStop(0.42, "#fbf3e6");
-  grad.addColorStop(0.58, "#e6d8c4");
-  grad.addColorStop(1, "#6f6154");
+  grad.addColorStop(0.40, "#fdf6ea");
+  grad.addColorStop(0.53, "#d6c2a2");
+  grad.addColorStop(1, "#4b3d2e");
   ectx.fillStyle = grad;
   ectx.fillRect(0, 0, 128, 64);
 
@@ -153,6 +145,7 @@ export async function mountHeroScene(container) {
   rim.position.set(-4, 2.4, -3);
   scene.add(rim);
 
+  // Only the straw is left in the deeper sand tone.
   const brass = new THREE.MeshStandardMaterial({ color: SAND, metalness: 0.72, roughness: 0.34 });
   const glass = new THREE.MeshPhysicalMaterial({
     color: 0xffffff, metalness: 0, roughness: 0.08,
@@ -167,31 +160,7 @@ export async function mountHeroScene(container) {
   const world = new THREE.Group();
   scene.add(world);
 
-  /* ------------------------------ the dallah ------------------------------ */
   const potY = (y) => (POT_BASE - y) * POT_UNIT;
-  const dallah = new THREE.Group();
-
-  dallah.add(new THREE.Mesh(
-    new THREE.LatheGeometry(POT_PROFILE.map(([r, y]) => new THREE.Vector2(r * POT_UNIT, potY(y))), 96),
-    brass
-  ));
-
-  const finial = new THREE.Mesh(new THREE.SphereGeometry(3 * POT_UNIT, 24, 16), brass);
-  finial.position.y = potY(15.5);
-  dallah.add(finial);
-
-  const sweep = (pts, radius) => new THREE.Mesh(
-    new THREE.TubeGeometry(
-      new THREE.CatmullRomCurve3(pts.map(([x, y]) => new THREE.Vector3(x * POT_UNIT, potY(y), 0))),
-      48, radius, 14, false
-    ),
-    brass
-  );
-  dallah.add(sweep(SPOUT, 2.4 * POT_UNIT));
-  dallah.add(sweep(HANDLE, 2.2 * POT_UNIT));
-
-  dallah.position.set(-1.5, 0.05, -0.35);
-  world.add(dallah);
 
   /* --------------------------- the iced coffee --------------------------- */
   const glassY = (y) => (GLASS_BASE - y) * GLASS_UNIT;
@@ -234,13 +203,14 @@ export async function mountHeroScene(container) {
   straw.rotation.z = -0.32;
   iced.add(straw);
 
-  iced.position.set(1.68, 0.1, -0.3);
+  iced.position.set(1.62, 0.0, -0.4);
   world.add(iced);
 
   /* ------------------------ the Arabic dala, in front ------------------------ */
-  // Polished steel rather than brass, matching a real dallah.
+  // Polished, but warmed towards the sand accent so it belongs to the palette
+  // rather than reading as cold kitchen steel.
   const steel = new THREE.MeshStandardMaterial({
-    color: 0xe4e5e2, metalness: 0.82, roughness: 0.16,
+    color: 0xe8d9bd, metalness: 0.94, roughness: 0.09,
   });
 
   const dala = new THREE.Group();
@@ -290,8 +260,8 @@ export async function mountHeroScene(container) {
   dala.add(flat(drawDalaHandle, 2.6 * POT_UNIT, drawDalaHandleHole));
 
   // Forward on Z, so perspective gives it presence without needing extra scale.
-  dala.position.set(-0.08, -0.14, 1.55);
-  dala.scale.setScalar(0.92);
+  dala.position.set(-0.7, -0.25, 1.25);
+  dala.scale.setScalar(1.22);
   world.add(dala);
 
   /* --------------------------- motion + dragging --------------------------- */
@@ -300,7 +270,7 @@ export async function mountHeroScene(container) {
 
   // Drag spins each object on its own axis. Rotating the parent group instead
   // would make the two orbit each other and swap sides, which wrecks the layout.
-  let autoPot = -0.5, autoGlass = 0, autoDala = 2.0;   // the idle turn of each object
+  let autoGlass = 0, autoDala = 0.3;   // the idle turn of each object
   let userSpin = 0;                    // what the visitor has added by dragging
   let spinVelocity = 0;                // momentum, eased back to rest
   let dragging = false;
@@ -351,7 +321,6 @@ export async function mountHeroScene(container) {
     last = now;
 
     // Each object turns at its own pace, so the pair is never static.
-    autoPot += dt * 0.30;
     autoGlass += dt * 0.42;
     autoDala += dt * 0.24;   // slowest, so the nearest object is the calmest
 
@@ -362,10 +331,8 @@ export async function mountHeroScene(container) {
       if (Math.abs(spinVelocity) < 0.00002) spinVelocity = 0;
     }
 
-    dallah.rotation.y = autoPot + userSpin;
     iced.rotation.y = autoGlass + userSpin;
     dala.rotation.y = autoDala + userSpin;
-    dallah.rotation.x += (tilt - dallah.rotation.x) * 0.08;
     iced.rotation.x += (tilt - iced.rotation.x) * 0.08;
     dala.rotation.x += (tilt - dala.rotation.x) * 0.08;
 
