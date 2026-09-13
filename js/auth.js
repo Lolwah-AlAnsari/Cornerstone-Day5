@@ -6,13 +6,28 @@
 import { supabase } from "./supabase.js";
 import { t } from "./i18n.js";
 
+/**
+ * True when Supabase is telling us the address is already registered.
+ *
+ * This must never be shown to the visitor: answering "that email is taken" lets
+ * a stranger use the sign-up form to test whether someone has an account. The
+ * caller shows the same "check your inbox" panel it shows a genuine new signup.
+ */
+export function isExistingAccount(error) {
+  const msg = (error?.message || "").toLowerCase();
+  return (
+    error?.code === "user_already_exists" ||
+    msg.includes("already registered") ||
+    msg.includes("already been registered")
+  );
+}
+
 /** Turns Supabase's raw error text into something a person wants to read. */
 export function friendlyAuthError(error) {
   const msg = (error?.message || "").toLowerCase();
   const code = error?.code || "";
 
   if (code === "invalid_credentials" || msg.includes("invalid login credentials")) return t("errBadCreds");
-  if (code === "user_already_exists" || msg.includes("already registered") || msg.includes("already been registered")) return t("errEmailTaken");
   if (code === "email_not_confirmed" || msg.includes("not confirmed")) return t("errUnconfirmed");
   if (code === "email_address_invalid" || msg.includes("is invalid")) return t("errEmailInvalid");
   if (code === "weak_password" || msg.includes("password should be at least")) return t("errPassShort");

@@ -6,7 +6,7 @@
 
 import { configured, supabase } from "./supabase.js";
 import { initLang, t, num, formatDate, getLang, toggleLang, onLangChange } from "./i18n.js";
-import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyAuthError, resendConfirmation } from "./auth.js";
+import { signUp, logIn, logOut, getSession, onAuthChange, displayName, friendlyAuthError, resendConfirmation, isExistingAccount } from "./auth.js";
 import { listLogs, createLog, updateLog, deleteLog, computeStats, computeInsights, withCoordinates } from "./logs.js";
 import { dallahArt, finjanArt, icedCoffeeArt, coffeeBeanArt } from "./art.js";
 import { loadLeaflet, createBaseMap, salfaMarker, fitToPoints, searchPlaces, DEFAULT_CENTER } from "./map.js";
@@ -403,7 +403,7 @@ function wireAuthForm(isSignup) {
     setFieldError(emailField, emailMsg);
     if (emailMsg) ok = false;
 
-    const passMsg = !password ? t("errPassReq") : password.length < 6 ? t("errPassShort") : "";
+    const passMsg = !password ? t("errPassReq") : password.length < 10 ? t("errPassShort") : "";
     setFieldError(passField, passMsg);
     if (passMsg) ok = false;
 
@@ -429,6 +429,16 @@ function wireAuthForm(isSignup) {
       go("#/dashboard");
     } catch (error) {
       busy(submit, false);
+
+      // An address that is already registered gets the *same* panel a genuine
+      // new signup gets. Saying "that email is taken" would let a stranger use
+      // this form to check whether someone has an account.
+      if (isSignup && isExistingAccount(error)) {
+        alertSlot.innerHTML = `<div class="alert alert--ok">${esc(t("checkEmail"))}</div>`;
+        form.reset();
+        return;
+      }
+
       // An unconfirmed account is a dead end without a way to get a fresh link.
       const unconfirmed = error?.code === "email_not_confirmed";
       state.notice = {
